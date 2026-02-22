@@ -56,6 +56,15 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
   - Ragel build rules — requires `ragel` in PATH ✓
   - `bin/gen_xctest` test wrappers — uses `${SRCROOT}`, `${DERIVED_FILE_DIR}` ✓
 
+**Implementation notes (in progress):**
+- `bin/gen_xcodeproj` created; `bin/gen_xctest` created and rewritten (removed namespace wrapping that polluted transitive includes)
+- `configure` updated to call `bin/gen_xcodeproj`
+- `project.yml` updated: added `export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"` to capnp, ragel, and multimarkdown build scripts
+- `Frameworks/scope/src/scope.h` fixed: `std::hash<scope::scope_t>` specialization wrapped in `namespace std { }`
+- `Shared/include/test/OakTestMacros.h` updated: added `#include <oak/iterator_macros.h>` for `foreach` macro
+- `capnp` installed via Homebrew (build-time compiler dependency)
+- Main build succeeds; test compilation has remaining issues (e.g., `t_tokenize.cc` missing `#include <text/format.h>`)
+
 **Validation:**
 1. `./configure` succeeds and produces both `build.ninja` and `TextMate.xcodeproj`
 2. `xcodebuild build -scheme TextMate -configuration Debug` succeeds
@@ -69,7 +78,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 **What:** Change the minimum deployment target from 10.12 to 13.0 across all build configurations. Remove `sdk-compat.h` which provides forward declarations for APIs that are now standard (10.13+ NSAppearanceName, 10.14+ dark mode APIs, 11.0+ NSWindowToolbarStyle).
 
-**Why:** macOS 13 is the oldest version still receiving security updates. All APIs we need (UniformTypeIdentifiers, WKWebView improvements, posix_spawn_file_actions_addchdir_np, NSProcessInfo.operatingSystemVersion) are available since macOS 10.15-11.0, so macOS 13 gives us full access with no `@available` guards needed.
+**Why:** macOS 13 (Ventura) covers the vast majority of active Mac users and provides all the modern APIs we need. All APIs we need (UniformTypeIdentifiers, WKWebView improvements, posix_spawn_file_actions_addchdir_np, NSProcessInfo.operatingSystemVersion) are available since macOS 10.15-11.0, so macOS 13 gives us full access with no `@available` guards needed.
 
 **Files to modify:**
 - `default.rave:1` — `APP_MIN_OS "10.12"` → `"13.0"`
@@ -218,6 +227,8 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `Frameworks/command/src/runner.mm` — rewrite `my_fork()` (lines 17-81) to use `posix_spawn_file_actions` for fd redirection, `posix_spawnattr_setpgroup` for process group, `posix_spawn_file_actions_addchdir_np` for working directory
 - `Frameworks/OakCommand/src/OakCommand.mm` — same `my_fork()` pattern migration
 - `Frameworks/OakDebug/src/OakAssert.mm` — rewrite `OakStackDump()` to use `posix_spawn` or the existing `io::spawn()`
+- `Applications/mate/src/mate.mm` — replace `oak::vfork()` + `execve()` at line 92 with `posix_spawn`
+- `Applications/PrivilegedTool/src/install.mm` — replace `oak::vfork()` + `execve()` at line 47 with `posix_spawn`
 - `Shared/include/oak/compat.h` — remove `oak::vfork()` wrapper entirely (no callers remain)
 
 **Validation:** Run a bundle command (tests runner.mm). Force a debug assertion (tests OakAssert.mm). Run `commandTests`. Verify process cleanup works correctly (no zombie processes).
@@ -242,7 +253,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `project.yml` — add `-framework UniformTypeIdentifiers` to OTHER_LDFLAGS for affected targets
 - Some `.cc` files may need conversion to `.mm` to use Obj-C UniformTypeIdentifiers API
 
-**Reference:** The sonnet_all branch has working UTType migrations for these files — use as guidance (not copy wholesale).
+**Reference:** The `sonnet_all` branch (`remotes/exmate/sonnet_all`) — an earlier, abandoned attempt at the same modernization goals — has partial UTType migrations for these files. Use as directional guidance only; it was done under different assumptions and is incomplete.
 
 **Validation:** Build. Open file browser, verify correct icons for files, folders, symlinks. Create new documents, verify correct type associations. Run `OakAppKitTests`, `FileBrowserTests`.
 
@@ -256,12 +267,12 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 **Submodule fork checkpoint:** Before starting this PR, stop and provide instructions for creating the `faisal/extmate-dialog` repo on GitHub (fork of `textmate/dialog`). The `TMDHTMLTips.mm` file in `PlugIns/dialog/` needs WKWebView migration. Work will be done on the `sdk_update_three` branch in that fork, and `.gitmodules` will be updated to point to it.
 
-**Scope (14 files):**
+**Scope (10 files with direct WebView references, plus helper files that may need new WKWebView glue):**
 - `Frameworks/HTMLOutput/src/browser/HOBrowserView.{h,mm}` — core browser view
 - `Frameworks/HTMLOutput/src/browser/HOWebViewDelegateHelper.{h,mm}` — delegate helper
-- `Frameworks/HTMLOutput/src/OakHTMLOutputView.{h,mm}` — main output view
-- `Frameworks/HTMLOutput/src/helpers/HOJSBridge.{h,mm}` — JavaScript bridge
-- `Frameworks/HTMLOutput/src/helpers/HOAutoScroll.{h,mm}` — auto-scroll
+- `Frameworks/HTMLOutput/src/OakHTMLOutputView.mm` — main output view (`.h` has no current WebView refs but may gain WKWebView property declarations)
+- `Frameworks/HTMLOutput/src/helpers/HOJSBridge.{h,mm}` — JavaScript bridge (no current WebView refs; will need new WKScriptMessageHandler glue)
+- `Frameworks/HTMLOutput/src/helpers/HOAutoScroll.{h,mm}` — auto-scroll (no current WebView refs; will need adaptation for WKWebView scroll API)
 - `Frameworks/HTMLOutput/src/helpers/WebView Additions.mm` — category (delete)
 - `Frameworks/OakCommand/src/OakCommand.mm` — custom URL scheme registration
 - `PlugIns/dialog/Commands/tooltip/TMDHTMLTips.mm` — tooltip rendering (**in dialog submodule fork**)
@@ -417,7 +428,7 @@ PR 0 comes first to establish the Xcode build as the validation path. PRs 3, 5, 
 
 ### Alert 1: PR 2 (compat.h) ↔ PR 8 (posix_spawn) — SUBSTANTIAL overlap
 
-PR 2 simplifies `oak::vfork()` to just `return fork()`. PR 8 then replaces all vfork/fork+execve callers with `posix_spawn()` and deletes `oak::vfork()` entirely. Both PRs touch the same 5 files (`compat.h`, `runner.mm`, `OakCommand.mm`, `OakAssert.mm`, `mate.mm`, `install.mm`). Doing PR 2 as written creates an intermediate state that PR 8 immediately undoes.
+PR 2 simplifies `oak::vfork()` to just `return fork()`. PR 8 then replaces all vfork/fork+execve callers with `posix_spawn()` and deletes `oak::vfork()` entirely. Both PRs touch the same 6 files (`compat.h`, `runner.mm`, `OakCommand.mm`, `OakAssert.mm`, `mate.mm`, `install.mm`). Doing PR 2 as written creates an intermediate state that PR 8 immediately undoes.
 
 **Options:**
 - **(A) Merge PR 2 + PR 8 into one PR** — skip the intermediate `fork()` step, go straight to `posix_spawn`. Reduces rework and avoids touching the same files twice. The Gestalt→NSProcessInfo changes from PR 2 would be included in this combined PR.
@@ -447,6 +458,14 @@ PR 0 requires all 25 test targets to compile and pass, which means fixing `gen_x
 - **(A) PR 0 fixes test compilation only; PR 13 adds new tests and CI** — clear split: PR 0 makes existing tests work, PR 13 adds new coverage. This is the current plan.
 - **(B) Merge test infrastructure work** — do all test work in PR 0. Risk: PR 0 becomes very large.
 
+### Alert 5: PR 4 (Ruby version management) ↔ PR 8 (posix_spawn) — LOW overlap
+
+PR 4 may modify PATH/environment handling in `Frameworks/command/src/runner.mm` to respect `TM_RUBY` and shell init files. PR 8 rewrites `my_fork()` in that same file to replace vfork+execve with posix_spawn. These are on independent dependency chains (PR 4 → PR 3; PR 8 → PR 2 → PR 1). If PR 4 lands first and PR 8 rewrites the function, PR 4's changes could be lost or need re-integration.
+
+**Options:**
+- **(A) Do PR 4 after PR 8** — ensures `runner.mm` is in its final posix_spawn form before adding Ruby PATH logic. Add a soft dependency edge: PR 4 should follow PR 8.
+- **(B) Keep independent** — PR 4's changes are likely in a different part of `runner.mm` than `my_fork()`. Merge conflicts are manageable. Accept the risk.
+
 *I will present these options and ask for your decision when I reach each overlap during implementation.*
 
 ---
@@ -456,13 +475,13 @@ PR 0 requires all 25 test targets to compile and pass, which means fixing `gen_x
 | PR | Risk | Notes |
 |----|------|-------|
 | 0 | Low | Script creation; xcodegen is well-understood |
-| 1-2 | Low | Mechanical changes; proven on sonnet_all branch |
+| 1-2 | Low | Mechanical changes; partially explored in abandoned `sonnet_all` branch |
 | 3-4 | Low | Ruby script fixes are straightforward |
 | 5 | Medium | Cap'n Proto C++ source integration needs careful file selection |
 | 6 | Medium | Regex behavior changes could affect syntax highlighting; may need submodule fork |
 | 7 | Low | Simple script updates |
 | 8 | Medium | Subtle fd handling differences in posix_spawn vs vfork+execve |
-| 9 | Low-Medium | UTType APIs are well-documented; sonnet_all has reference |
+| 9 | Low-Medium | UTType APIs are well-documented; abandoned `sonnet_all` branch has partial reference |
 | 10 | **High** | Largest change; JS bridge rearchitecture; custom URL schemes; **requires dialog submodule fork** |
 | 11 | Low | Sweep pass, individual items are small |
 | 12 | Medium | Requires visual testing; metric changes can be subtle |

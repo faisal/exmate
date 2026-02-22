@@ -113,12 +113,15 @@ namespace scope
 
 } /* scope */
 
-template<> struct std::hash<scope::scope_t>
+namespace std
 {
-	size_t operator() (scope::scope_t const& scope) const
+	template<> struct hash<scope::scope_t>
 	{
-		return scope.hash();
-	}
-};
+		size_t operator() (scope::scope_t const& scope) const
+		{
+			return scope.hash();
+		}
+	};
+}
 
 #endif /* end of include guard: SCOPE_SELECTOR_H_WZ1A8GIC */

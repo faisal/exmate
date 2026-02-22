@@ -10,6 +10,7 @@
 #include <exception>
 #include <string>
 #include <type_traits>
+#include <oak/iterator_macros.h>
 
 static std::string oak_format (char const* format, ...) __attribute__ ((format (printf, 1, 2)));
 static std::string oak_format (char const* format, ...)

@@ -2,11 +2,14 @@
 
 ## Context
 
-TextMate (exmate) currently targets macOS 10.12 (Sierra) and uses several deprecated APIs, a Homebrew-linked Cap'n Proto, an old Onigmo 5.13.5, and an SDK compatibility shim. The goal is to modernize the codebase to target macOS 13.0 (Ventura), vendor dependencies properly, address all deprecation warnings with real API migrations, and ensure the app builds, runs, and passes tests after each step.
+TextMate (exmate) currently targets macOS 10.12 (Sierra) and uses several deprecated APIs, a Homebrew-linked Cap'n Proto, an old Onigmo 5.13.5, and an SDK compatibility shim. The goal is to modernize the codebase to target macOS 13.0 (Ventura), vendor dependencies properly, address all deprecation warnings with real API migrations, and ensure the app builds, runs, and passes tests after each step. After each step, the build should work as well or better than it did in the prior step, and testing should confirm that.
 
 **Key decisions made:**
 - Minimum OS: macOS 13.0 (Ventura)
 - Static libraries: Keep all 48 internal frameworks as static `.a` files (LTO + dead stripping is optimal for a single-binary app)
+- Execution order: Keep PRs in their current listed order and keep overlap-alert steps separate (no PR merges)
+- Fork workflow: When a submodule fork is required, stop and wait for the user to create the fork before continuing
+- Dependency versioning: For PR 5 (Cap'n Proto) and PR 6 (Onigmo), select the exact tag at implementation time (latest stable at that time) and record it in the PR notes
 
 ---
 
@@ -68,7 +71,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 **Validation:**
 1. `./configure` succeeds and produces both `build.ninja` and `TextMate.xcodeproj`
 2. `xcodebuild build -scheme TextMate -configuration Debug` succeeds
-3. `xcodebuild test -scheme TextMate -configuration Debug` — all 25 test targets pass
+3. `xcodebuild test -scheme TextMate -configuration Debug` runs; pre-existing failing tests may remain for now and will be addressed in later planned steps (especially PR 13)
 4. The built `TextMate.app` launches and is functional (open a file, basic editing)
 5. Modify a source file, rebuild from Xcode — the change is picked up
 
@@ -176,7 +179,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `local.rave` / Shared.xcconfig — keep `/opt/homebrew/include` for boost/sparsehash, keep `/opt/homebrew/lib` only if still needed
 - Re-run `bin/gen_xcodeproj` to regenerate the Xcode project with the new targets
 
-**Note:** Cap'n Proto's C++ source is self-contained but has many files. The Xcode target needs careful source file selection. I'll review the capnp CMakeLists.txt to identify exactly which `.c++` files to include for the runtime libraries (not the compiler, schema loader, or RPC layer unless needed).
+**Note:** Cap'n Proto's C++ source is self-contained but has many files. The Xcode target needs careful source file selection. I'll review the capnp CMakeLists.txt to identify exactly which `.c++` files to include for the runtime libraries (not the compiler, schema loader, or RPC layer unless needed). The exact upstream tag will be chosen at implementation time (latest stable then) and documented in the PR.
 
 **Validation:** Build succeeds without Homebrew capnp libraries installed (only the `capnp` compiler binary needed). `encodingTests` and `plistTests` pass.
 
@@ -188,7 +191,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 **Why:** Bug fixes, performance improvements, and Unicode updates since 5.13.5. The current version is based on Oniguruma 5.9.6 with Ruby patches from ~2015.
 
-**Submodule fork checkpoint:** Before starting this PR, assess whether a fork is needed. If only bumping the submodule pointer to a new upstream tag — no fork needed. If custom patches are required for TextMate compatibility — stop and provide instructions for creating `faisal/extmate-Onigmo` on GitHub.
+**Submodule fork checkpoint:** Before starting this PR, assess whether a fork is needed. If only bumping the submodule pointer to a new upstream tag — no fork needed. If custom patches are required for TextMate compatibility — stop, provide instructions for creating `faisal/extmate-Onigmo` on GitHub, and wait for user confirmation that the fork exists before proceeding.
 
 **Files to modify:**
 - `vendor/Onigmo/vendor` — update submodule to latest tag
@@ -198,6 +201,8 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `Frameworks/regexp/src/` — verify API compatibility. Grep for `onig_` function calls and check they still exist
 
 **Risk:** Regex behavior changes could subtly affect syntax highlighting. Thorough testing of the regexp framework is essential.
+
+**Tag selection policy:** Choose the exact Onigmo tag at implementation time (latest stable at that time) and record the chosen tag in the PR notes.
 
 **Validation:** Build `Onigmo` target. Run `OnigmoTests` and `regexpTests`. Open diverse source files and verify syntax highlighting is correct.
 
@@ -265,7 +270,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 **Why:** `WebView` (WebKit legacy) was deprecated in macOS 10.14. `WKWebView` is the modern replacement with better security, performance, and process isolation.
 
-**Submodule fork checkpoint:** Before starting this PR, stop and provide instructions for creating the `faisal/extmate-dialog` repo on GitHub (fork of `textmate/dialog`). The `TMDHTMLTips.mm` file in `PlugIns/dialog/` needs WKWebView migration. Work will be done on the `sdk_update_three` branch in that fork, and `.gitmodules` will be updated to point to it.
+**Submodule fork checkpoint:** Before starting this PR, stop and provide instructions for creating the `faisal/extmate-dialog` repo on GitHub (fork of `textmate/dialog`), then wait for user confirmation before continuing. The `TMDHTMLTips.mm` file in `PlugIns/dialog/` needs WKWebView migration. Work will be done on the `sdk_update_three` branch in that fork, and `.gitmodules` will be updated to point to it.
 
 **Scope (10 files with direct WebView references, plus helper files that may need new WKWebView glue):**
 - `Frameworks/HTMLOutput/src/browser/HOBrowserView.{h,mm}` — core browser view
@@ -304,7 +309,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 **Why:** The user asked to address deprecation warnings with proper fixes rather than suppression.
 
 **Known items to address:**
-- `AuthorizationExecuteWithPrivileges` in `compat.h` / `authorization/src/server.mm` / `Preferences/src/TerminalPreferences.mm` — document the XPC migration path, add focused `#pragma` with `// TODO` comment explaining why (no drop-in replacement exists without SMJobBless)
+- `AuthorizationExecuteWithPrivileges` in `compat.h` / `authorization/src/server.mm` / `Preferences/src/TerminalPreferences.mm` — document the XPC migration path and keep minimal, focused suppression with `// TODO` explaining why (no drop-in replacement exists without SMJobBless) until a dedicated XPC/SMJobBless migration
 - Any `Carbon.framework` deprecated APIs beyond what's already addressed
 - Deprecated `NSWindow`/`NSView` methods if any remain
 - Deprecated `ExceptionHandling.framework` usage in OakDebug
@@ -313,7 +318,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 **For each warning, the approach is:**
 1. If a modern API replacement exists → replace it
-2. If no replacement exists (e.g., AuthorizationExecuteWithPrivileges) → document why, keep minimal suppression
+2. If no replacement exists (e.g., AuthorizationExecuteWithPrivileges) → document why, keep minimal suppression (accepted for now)
 3. Present each proposed change and its rationale for review
 
 **Validation:** `xcodebuild build 2>&1 | grep -i deprecat` returns zero warnings (or only documented/accepted ones).
@@ -336,12 +341,13 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `Frameworks/DocumentWindow/src/DocumentWindowController.mm` — main window chrome
 
 **Approach:**
-1. Build and run on macOS 13+ to identify visual discrepancies vs. screenshots/design reference
-2. Audit hardcoded metrics (pixel values, font sizes, padding)
-3. Update `NSWindowToolbarStyle` settings if needed
-4. Adjust `NSVisualEffectView` material choices for macOS 13 vibrancy
-5. Fix any Auto Layout constraint conflicts that arise from changed intrinsic sizes
-6. Test dark mode appearance
+1. Build and run on macOS 13+ to identify visual discrepancies vs. design reference
+2. For non-toolbar UI areas, use the app appearance from the macOS 10.12-SDK build as the intended baseline
+3. Audit hardcoded metrics (pixel values, font sizes, padding)
+4. Update `NSWindowToolbarStyle` settings if needed
+5. Adjust `NSVisualEffectView` material choices for macOS 13 vibrancy
+6. Fix any Auto Layout constraint conflicts that arise from changed intrinsic sizes
+7. Test dark mode appearance
 
 **Validation:** Visual comparison of running app vs. design reference. No ambiguous layout warnings. Dark mode toggle works without visual artifacts.
 
@@ -416,15 +422,15 @@ PR 13 (tests + CI)                     [depends on 8, 9, 10]
 PR 14 (docs + cleanup)                 [depends on all]
 ```
 
-PR 0 comes first to establish the Xcode build as the validation path. PRs 3, 5, 6 can then proceed in parallel with PRs 1-2. The critical path is: PR 0 → PR 1 → PR 2 → PR 8 / PR 10 → PR 13.
+PR 0 comes first to establish the Xcode build as the validation path. Although some work could be parallelized, implementation will follow the listed PR order. The critical path remains: PR 0 → PR 1 → PR 2 → PR 8 / PR 10 → PR 13.
 
-**Submodule fork checkpoints:** Before starting PR 10 (WKWebView), I will stop and provide instructions for creating the `faisal/extmate-dialog` fork on GitHub. Before PR 6 (Onigmo), I will assess whether a fork is needed or just a submodule pointer bump.
+**Submodule fork checkpoints:** Before starting PR 10 (WKWebView), I will stop, provide instructions for creating the `faisal/extmate-dialog` fork on GitHub, and wait for your confirmation before continuing. Before PR 6 (Onigmo), I will assess whether a fork is needed or just a submodule pointer bump; if a fork is needed, I will stop and wait for your confirmation before continuing.
 
 ---
 
 ## Step Overlap Alerts
 
-**Policy:** If implementing any step here requires — or at least strongly encourages — implementing the majority of a later step, I will call it out, show options, and ask how to proceed before starting work.
+**Policy:** Overlap alerts are retained for context, and decisions are now fixed in this plan revision. Implementation should follow the recorded decisions unless explicitly changed later.
 
 ### Alert 1: PR 2 (compat.h) ↔ PR 8 (posix_spawn) — SUBSTANTIAL overlap
 
@@ -434,6 +440,8 @@ PR 2 simplifies `oak::vfork()` to just `return fork()`. PR 8 then replaces all v
 - **(A) Merge PR 2 + PR 8 into one PR** — skip the intermediate `fork()` step, go straight to `posix_spawn`. Reduces rework and avoids touching the same files twice. The Gestalt→NSProcessInfo changes from PR 2 would be included in this combined PR.
 - **(B) Keep separate** — PR 2 is a quick, safe change; PR 8 is riskier (fd handling). Separating them isolates risk and makes bisection easier.
 
+**Decision:** **(B) Keep separate**.
+
 ### Alert 2: PR 10 (WKWebView) ↔ PR 12 (layout metrics) — MODERATE overlap
 
 PR 10 rewrites 4+ HTMLOutput views (`HOBrowserView.mm`, `HOStatusBar.mm`, `OakHTMLOutputView.mm`, etc.) to replace WebView with WKWebView. PR 12 then adjusts layout metrics in those same views. If done separately, PR 12 will need to re-learn and re-edit the same code PR 10 just rewrote.
@@ -441,6 +449,8 @@ PR 10 rewrites 4+ HTMLOutput views (`HOBrowserView.mm`, `HOStatusBar.mm`, `OakHT
 **Options:**
 - **(A) Do layout metrics for HTMLOutput views as part of PR 10** — when rewriting each view for WKWebView, also set correct metrics. PR 12 then only covers non-HTMLOutput views (tab bar, file browser, preferences).
 - **(B) Keep separate** — PR 10 focuses purely on API migration (WKWebView). PR 12 handles all layout as a dedicated visual polish pass. Cleaner separation of concerns but more file revisits.
+
+**Decision:** **(B) Keep separate**.
 
 ### Alert 3: PR 5 (vendor capnp) ↔ PR 7 (configure modernization) — LOW-MODERATE overlap
 
@@ -450,13 +460,17 @@ PR 5 vendors capnp, which requires modifying `configure` to remove library check
 - **(A) Merge PR 5 + PR 7** — vendor capnp and modernize configure in one PR.
 - **(B) Keep separate** — PR 5 does minimal configure changes (just remove capnp checks). PR 7 does the broader modernization pass. Lower risk per PR.
 
+**Decision:** **(B) Keep separate**.
+
 ### Alert 4: PR 0 (Xcode build) ↔ PR 13 (test infrastructure) — MODERATE overlap
 
-PR 0 requires all 25 test targets to compile and pass, which means fixing `gen_xctest` (namespace wrapping issue), `scope.h` (std::hash specialization), and handling duplicate test function names across files. These fixes establish the test infrastructure foundation that PR 13 builds on.
+PR 0 establishes Xcode-based build/test execution and may include test-compilation fixes where needed, but pre-existing failing tests may remain temporarily. PR 13 remains the step for adding new test coverage and closing out test-infrastructure work.
 
 **Options:**
-- **(A) PR 0 fixes test compilation only; PR 13 adds new tests and CI** — clear split: PR 0 makes existing tests work, PR 13 adds new coverage. This is the current plan.
+- **(A) PR 0 fixes build/test invocation and compilation blockers only; PR 13 adds new tests and CI** — clear split: PR 0 stabilizes the path, PR 13 adds new coverage and final test hardening. This is the current plan.
 - **(B) Merge test infrastructure work** — do all test work in PR 0. Risk: PR 0 becomes very large.
+
+**Decision:** **(A) Keep the current split**.
 
 ### Alert 5: PR 4 (Ruby version management) ↔ PR 8 (posix_spawn) — LOW overlap
 
@@ -466,7 +480,9 @@ PR 4 may modify PATH/environment handling in `Frameworks/command/src/runner.mm` 
 - **(A) Do PR 4 after PR 8** — ensures `runner.mm` is in its final posix_spawn form before adding Ruby PATH logic. Add a soft dependency edge: PR 4 should follow PR 8.
 - **(B) Keep independent** — PR 4's changes are likely in a different part of `runner.mm` than `my_fork()`. Merge conflicts are manageable. Accept the risk.
 
-*I will present these options and ask for your decision when I reach each overlap during implementation.*
+**Decision:** **(B) Keep independent with current order**.
+
+*Decisions above are fixed for this plan revision and should be followed as written during implementation.*
 
 ---
 

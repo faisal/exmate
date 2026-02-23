@@ -1,4 +1,4 @@
-#!/System/Library/Frameworks/Ruby.framework/Versions/Current/usr/bin/ruby
+#!/System/Library/Frameworks/Ruby.framework/Versions/Current/usr/bin/ruby --disable-gems
 # == Synopsis
 #
 # Module to assist in building the Contributors page using git commit history.

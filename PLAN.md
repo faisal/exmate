@@ -144,7 +144,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 **Submodule fork checkpoint:** Before starting this PR, assess whether a fork is needed. If only bumping the submodule pointer to a new upstream tag — no fork needed. If custom patches are required for TextMate compatibility — stop, provide instructions for creating `faisal/extmate-Onigmo` on GitHub, and wait for user confirmation that the fork exists before proceeding.
 
 **Files to modify:**
-- `vendor/Onigmo/vendor` — update submodule to latest tag
+- `vendor/Onigmo/vendor` — update submodule to latest tag (6.9.10)
 - `vendor/Onigmo/config.h` — regenerate for new version (update PACKAGE_VERSION, PACKAGE_STRING)
 - `vendor/Onigmo/src/setup.c` — review if still compatible with new version
 - `Frameworks/regexp/src/` — verify API compatibility. Grep for `onig_` function calls and check they still exist
@@ -273,11 +273,11 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 ---
 
-## PR 12: Fix interface layout metrics for macOS 13
+## PR 12: Fix interface layout metrics and backgrounds for macOS 13
 
-**What:** Adopt the macOS 11-15 window style, then adjust UI metrics and layout code so the app's appearance matches the intended design from the macOS 10.12 era, accounting for system metric changes in macOS 11-13.
+**What:** Adopt the macOS 11-15 window style, then adjust UI metrics and layout code so the app's appearance matches the intended design from the macOS 10.12 era, accounting for system metric changes in macOS 11-13, and correcting the background for the sidebar.
 
-**Why:** When compiled against a newer SDK, macOS applies different default metrics (title bar height, toolbar spacing, control sizing, tab bar dimensions, vibrancy materials). With the exception of the title bar height and control sizing, the visual appearance should remain consistent with the original design.
+**Why:** When compiled against a newer SDK, macOS applies different default metrics (title bar height, toolbar spacing, control sizing, tab bar dimensions, vibrancy materials). In addition, the sidebar now shows a dark gray background rather than their intended colors. With the exception of the title bar height and control sizing, the visual appearance should remain consistent with the original design.
 
 **Files to examine and adjust:**
 - `Frameworks/OakTabBarView/src/OakTabBarView.mm` — tab bar height and drawing metrics
@@ -295,7 +295,8 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 4. Update `NSWindowToolbarStyle` settings if needed
 5. Adjust `NSVisualEffectView` material choices for macOS 13 vibrancy
 6. Fix any Auto Layout constraint conflicts that arise from changed intrinsic sizes
-7. Test dark mode appearance
+7. Audit colors for the sidebar and other views
+8. Test dark mode appearance
 
 **Validation:** Visual comparison of running app vs. design reference. No ambiguous layout warnings. Dark mode toggle works without visual artifacts.
 

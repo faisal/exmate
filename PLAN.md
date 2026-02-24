@@ -275,9 +275,9 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 ## PR 12: Fix interface layout metrics for macOS 13
 
-**What:** Adjust UI metrics and layout code so the app's appearance matches the intended design from the macOS 10.12 era, accounting for system metric changes in macOS 13.
+**What:** Adopt the macOS 11-15 window style, then adjust UI metrics and layout code so the app's appearance matches the intended design from the macOS 10.12 era, accounting for system metric changes in macOS 11-13.
 
-**Why:** When compiled against a newer SDK, macOS applies different default metrics (title bar height, toolbar spacing, control sizing, tab bar dimensions, vibrancy materials). The visual appearance should remain consistent with the original design.
+**Why:** When compiled against a newer SDK, macOS applies different default metrics (title bar height, toolbar spacing, control sizing, tab bar dimensions, vibrancy materials). With the exception of the title bar height and control sizing, the visual appearance should remain consistent with the original design.
 
 **Files to examine and adjust:**
 - `Frameworks/OakTabBarView/src/OakTabBarView.mm` — tab bar height and drawing metrics

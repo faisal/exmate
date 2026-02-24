@@ -2,7 +2,7 @@
 
 ## Context
 
-TextMate (exmate) currently targets macOS 10.12 (Sierra) and uses several deprecated APIs, a Homebrew-linked Cap'n Proto, an old Onigmo 5.13.5, and an SDK compatibility shim. The goal is to modernize the codebase to target macOS 13.0 (Ventura), vendor dependencies properly, address all deprecation warnings with real API migrations, and ensure the app builds, runs, and passes tests after each step. After each step, the build should work as well or better than it did in the prior step, and testing should confirm that.
+TextMate (exmate) currently targets macOS 10.12 (Sierra) and uses several deprecated APIs, a Homebrew-linked Cap'n Proto, an old Onigmo 5.13.5, and an SDK compatibility shim. The goal is to modernize the codebase to target macOS 13.0 (Ventura), vendor dependencies properly, address all deprecation warnings with real API migrations, and ensure the app builds, runs, and passes tests after each step for PRs 1-13 and 15. PR 14 (Xcode build integration) comes last to generate the Xcode project for final validation. After each step, the build should work as well or better than it did in the prior step, and testing should confirm that.
 
 **Key decisions made:**
 - Minimum OS: macOS 13.0 (Ventura)
@@ -34,11 +34,11 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 ---
 
-## PR 0: Xcode build integration — configure generates the Xcode project
+## PR 14: Xcode build integration — configure generates the Xcode project
 
 **What:** Extend `./configure` so that it updates `project.yml` to reflect the installed Xcode version, then runs `xcodegen` to generate `TextMate.xcodeproj`. Ensure all build-phase scripts work whether invoked from ninja or from Xcode.
 
-**Why:** The Xcode project must be a first-class build path, not a stale artifact. Every subsequent PR validates by building and testing from Xcode, so this must come first. Currently `project.yml` has `xcodeVersion: "26.0"` but the installed Xcode may differ — this should be auto-detected. Most targets in `project.yml` use directory-level source paths (xcodegen auto-discovers files), but vendor targets (Onigmo, kvdb) use explicit file lists that can drift.
+**Why:** The Xcode project must be a first-class build path, not a stale artifact. This PR generates the Xcode project for final validation. Currently `project.yml` has `xcodeVersion: "26.0"` but the installed Xcode may differ — this should be auto-detected. Most targets in `project.yml` use directory-level source paths (xcodegen auto-discovers files), but vendor targets (Onigmo, kvdb) use explicit file lists that can drift.
 
 **Files to create/modify:**
 
@@ -91,7 +91,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - Remove all `#include <oak/sdk-compat.h>` / `#import <oak/sdk-compat.h>` from prelude headers and any direct includers
 - Remove `@available(macOS 10.14, *)` and `@available(macOS 11.0, *)` guards that are now always-true (search across Frameworks/)
 
-**Validation:** `xcodebuild build -scheme TextMate -configuration Debug` succeeds. Expect new deprecation warnings (addressed in later PRs). Verify Info.plist LSMinimumSystemVersion resolves to 13.0.
+**Validation:** `ninja -C build/release` succeeds. Expect new deprecation warnings (addressed in later PRs). Verify Info.plist LSMinimumSystemVersion resolves to 13.0.
 
 ---
 
@@ -177,7 +177,6 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `project.yml` encoding/plist targets — add dependencies on `kj`/`capnp_lib`, remove `-lcapnp -lkj` from their `OTHER_LDFLAGS`
 - `configure` — remove library checks for capnp/kj (keep compiler binary check)
 - `local.rave` / Shared.xcconfig — keep `/opt/homebrew/include` for boost/sparsehash, keep `/opt/homebrew/lib` only if still needed
-- Re-run `bin/gen_xcodeproj` to regenerate the Xcode project with the new targets
 
 **Note:** Cap'n Proto's C++ source is self-contained but has many files. The Xcode target needs careful source file selection. I'll review the capnp CMakeLists.txt to identify exactly which `.c++` files to include for the runtime libraries (not the compiler, schema loader, or RPC layer unless needed). The exact upstream tag will be chosen at implementation time (latest stable then) and documented in the PR.
 
@@ -197,7 +196,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `vendor/Onigmo/vendor` — update submodule to latest tag
 - `vendor/Onigmo/config.h` — regenerate for new version (update PACKAGE_VERSION, PACKAGE_STRING)
 - `vendor/Onigmo/src/setup.c` — review if still compatible with new version
-- `project.yml` Onigmo target — update source file list if new version adds/removes files in `enc/`. Re-run `bin/gen_xcodeproj`.
+- `project.yml` Onigmo target — update source file list if new version adds/removes files in `enc/`
 - `Frameworks/regexp/src/` — verify API compatibility. Grep for `onig_` function calls and check they still exist
 
 **Risk:** Regex behavior changes could subtly affect syntax highlighting. Thorough testing of the regexp framework is essential.
@@ -321,7 +320,7 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 2. If no replacement exists (e.g., AuthorizationExecuteWithPrivileges) → document why, keep minimal suppression (accepted for now)
 3. Present each proposed change and its rationale for review
 
-**Validation:** `xcodebuild build 2>&1 | grep -i deprecat` returns zero warnings (or only documented/accepted ones).
+**Validation:** `ninja -C build/release 2>&1 | grep -i deprecat` returns zero warnings (or only documented/accepted ones).
 
 ---
 
@@ -377,15 +376,14 @@ jobs:
         with: { submodules: recursive }
       - run: brew install xcodegen ragel multimarkdown capnp boost google-sparsehash
       - run: ./configure
-      - run: xcodebuild build -scheme TextMate -configuration Debug
-      - run: xcodebuild test -scheme TextMate -configuration Debug
+      - run: ninja -C build/release
 ```
 
-**Validation:** `xcodebuild test -scheme TextMate` passes all existing + new tests. CI workflow succeeds on push.
+**Validation:** `ninja -C build/release` passes all existing + new tests. CI workflow succeeds on push.
 
 ---
 
-## PR 14: Documentation and final cleanup
+## PR 15: Documentation and final cleanup
 
 **What:** Update README, remove dead code, clean up stale `#pragma` suppressions.
 
@@ -395,16 +393,14 @@ jobs:
 - Remove stale `WebView Additions.mm` if not removed in PR 10
 - Add Ruby version management documentation
 
-**Validation:** Fresh clone → `git submodule update --init --recursive` → `./configure` → `xcodebuild build` → `xcodebuild test` — all green.
+**Validation:** Fresh clone → `git submodule update --init --recursive` → `./configure` → `ninja -C build/release` — all green.
 
 ---
 
 ## Commit Dependency Graph
 
 ```
-PR 0 (Xcode build integration)         [first — all subsequent PRs validate via Xcode]
-│
-PR 1 (deployment target + remove sdk-compat.h)  [depends on 0]
+PR 1 (deployment target + remove sdk-compat.h)
 ├── PR 2 (modernize compat.h)          [depends on 1]
 │   ├── PR 8 (posix_spawn migration)   [depends on 2]
 │   └── PR 11 (remaining deprecations) [depends on 2, 9, 10]
@@ -412,17 +408,18 @@ PR 1 (deployment target + remove sdk-compat.h)  [depends on 0]
 ├── PR 10 (WKWebView migration)        [depends on 1; SUBMODULE: dialog fork needed]
 ├── PR 12 (layout metrics)             [depends on 1, 10]
 │
-├── PR 3 (Ruby build scripts)          [depends on 0]
+├── PR 3 (Ruby build scripts)          [independent]
 ├── PR 4 (Ruby version management)     [depends on 3]
-├── PR 5 (vendor capnp)                [depends on 0; re-run gen_xcodeproj after]
-├── PR 6 (update Onigmo)               [depends on 0; SUBMODULE: fork if patches needed]
+├── PR 5 (vendor capnp)                [independent]
+├── PR 6 (update Onigmo)               [independent; SUBMODULE: fork if patches needed]
 └── PR 7 (configure modernization)     [depends on 5]
 
 PR 13 (tests + CI)                     [depends on 8, 9, 10]
-PR 14 (docs + cleanup)                 [depends on all]
+PR 14 (Xcode build integration)         [last — generates Xcode project for final validation]
+PR 15 (docs + cleanup)                 [depends on all]
 ```
 
-PR 0 comes first to establish the Xcode build as the validation path. Although some work could be parallelized, implementation will follow the listed PR order. The critical path remains: PR 0 → PR 1 → PR 2 → PR 8 / PR 10 → PR 13.
+PR 1 comes first to modernize the deployment target. PRs 2-12 can proceed in parallel where dependencies allow. PR 14 (Xcode build integration) comes last to generate the Xcode project for final validation. The critical path remains: PR 1 → PR 2 → PR 8 / PR 10 → PR 13 → PR 14.
 
 **Submodule fork checkpoints:** Before starting PR 10 (WKWebView), I will stop, provide instructions for creating the `faisal/extmate-dialog` fork on GitHub, and wait for your confirmation before continuing. Before PR 6 (Onigmo), I will assess whether a fork is needed or just a submodule pointer bump; if a fork is needed, I will stop and wait for your confirmation before continuing.
 
@@ -462,15 +459,9 @@ PR 5 vendors capnp, which requires modifying `configure` to remove library check
 
 **Decision:** **(B) Keep separate**.
 
-### Alert 4: PR 0 (Xcode build) ↔ PR 13 (test infrastructure) — MODERATE overlap
+### Alert 4: PR 14 (Xcode build) ↔ PR 13 (test infrastructure)
 
-PR 0 establishes Xcode-based build/test execution and may include test-compilation fixes where needed, but pre-existing failing tests may remain temporarily. PR 13 remains the step for adding new test coverage and closing out test-infrastructure work.
-
-**Options:**
-- **(A) PR 0 fixes build/test invocation and compilation blockers only; PR 13 adds new tests and CI** — clear split: PR 0 stabilizes the path, PR 13 adds new coverage and final test hardening. This is the current plan.
-- **(B) Merge test infrastructure work** — do all test work in PR 0. Risk: PR 0 becomes very large.
-
-**Decision:** **(A) Keep the current split**.
+PR 14 comes at the end to generate the Xcode project for final validation. PRs 1-13 validate using ninja build. This allows all modernization work to proceed before generating the Xcode project.
 
 ### Alert 5: PR 4 (Ruby version management) ↔ PR 8 (posix_spawn) — LOW overlap
 
@@ -490,7 +481,6 @@ PR 4 may modify PATH/environment handling in `Frameworks/command/src/runner.mm` 
 
 | PR | Risk | Notes |
 |----|------|-------|
-| 0 | Low | Script creation; xcodegen is well-understood |
 | 1-2 | Low | Mechanical changes; partially explored in abandoned `sonnet_all` branch |
 | 3-4 | Low | Ruby script fixes are straightforward |
 | 5 | Medium | Cap'n Proto C++ source integration needs careful file selection |
@@ -501,4 +491,6 @@ PR 4 may modify PATH/environment handling in `Frameworks/command/src/runner.mm` 
 | 10 | **High** | Largest change; JS bridge rearchitecture; custom URL schemes; **requires dialog submodule fork** |
 | 11 | Low | Sweep pass, individual items are small |
 | 12 | Medium | Requires visual testing; metric changes can be subtle |
-| 13-14 | Low | Testing and documentation |
+| 13 | Low | Testing and documentation |
+| 14 | Low | Script creation; xcodegen is well-understood |
+| 15 | Low | Documentation updates |

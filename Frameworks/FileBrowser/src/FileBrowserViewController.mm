@@ -26,6 +26,7 @@
 #import <settings/settings.h>
 #import <text/ctype.h>
 #import <text/utf8.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 static bool is_binary (std::string const& path)
 {
@@ -1683,7 +1684,7 @@ static NSMutableIndexSet* MutableLongestCommonSubsequence (NSArray* lhs, NSArray
 		if([url.scheme isEqualToString:@"scm"])
 		{
 			if([url.query hasSuffix:@"unstaged"] || [url.query hasSuffix:@"untracked"])
-					image = [NSWorkspace.sharedWorkspace iconForFileType:NSFileTypeForHFSTypeCode((OSType)kGenericFolderIcon)];
+					image = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeFolder];
 			else	image = [NSImage imageNamed:@"SCMTemplate" inSameBundleAsClass:NSClassFromString(@"OakFileBrowser")];
 		}
 		else if([url.scheme isEqualToString:@"computer"])
@@ -1692,7 +1693,7 @@ static NSMutableIndexSet* MutableLongestCommonSubsequence (NSArray* lhs, NSArray
 		}
 		else
 		{
-			image = [NSWorkspace.sharedWorkspace iconForFileType:NSFileTypeForHFSTypeCode((OSType)kGenericFolderIcon)];
+			image = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeFolder];
 		}
 
 		image = [image copy];

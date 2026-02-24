@@ -1,4 +1,5 @@
 #import "TMFileReference.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 NSNotificationName const TMURLWillCloseNotification = @"TMURLWillCloseNotification";
 
@@ -188,7 +189,7 @@ static NSImage* ImageNamed (NSString* imageName)
 			NSImage* image;
 			if(scmStatus == scm::status::deleted)
 			{
-				image = [NSWorkspace.sharedWorkspace iconForFileType:NSFileTypeForHFSTypeCode((OSType)kUnknownFSObjectIcon)];
+				image = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeItem];
 			}
 			else if(url.isFileURL)
 			{
@@ -228,9 +229,9 @@ static NSImage* ImageNamed (NSString* imageName)
 				if([url.scheme isEqualToString:@"computer"])
 					image = [NSImage imageNamed:NSImageNameComputer];
 				else if(url.hasDirectoryPath)
-					image = [NSWorkspace.sharedWorkspace iconForFileType:NSFileTypeForHFSTypeCode((OSType)kGenericFolderIcon)];
-				else
-					image = [NSWorkspace.sharedWorkspace iconForFileType:NSFileTypeForHFSTypeCode((OSType)kGenericDocumentIcon)];
+				image = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeFolder];
+			else
+				image = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeContent];
 			}
 
 			[image drawInRect:dstRect fromRect:NSZeroRect operation:NSCompositingOperationCopy fraction:1];
@@ -254,16 +255,8 @@ static NSImage* ImageNamed (NSString* imageName)
 
 			if(drawLinkBadge)
 			{
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-				IconRef iconRef;
-				if(GetIconRef(kOnSystemDisk, kSystemIconsCreator, kAliasBadgeIcon, &iconRef) == noErr)
-				{
-					NSImage* badge = [[NSImage alloc] initWithIconRef:iconRef];
-					[badge drawInRect:dstRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1];
-					ReleaseIconRef(iconRef);
-				}
-#pragma clang diagnostic pop
+				NSImage* badge = [NSImage imageWithSystemSymbolName:@"link.badge.plus" accessibilityDescription:@"Alias"];
+				[badge drawInRect:dstRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1];
 			}
 
 			return YES;

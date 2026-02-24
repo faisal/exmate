@@ -4,6 +4,7 @@
 #import <text/case.h>
 #import <text/utf8.h>
 #import <ns/ns.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @interface MenuAttributedString : NSAttributedString
 @property (nonatomic) NSAttributedString* wrappedAttributedString;
@@ -71,7 +72,7 @@ static char const* kOakMenuItemTabTrigger    = "OakMenuItemTabTrigger";
 	else if(OakNotEmptyString([path pathExtension]))
 		icon = [NSWorkspace.sharedWorkspace iconForFileType:[path pathExtension]];
 	else
-		icon = [NSWorkspace.sharedWorkspace iconForFileType:NSFileTypeForHFSTypeCode(kUnknownFSObjectIcon)];
+		icon = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeItem];
 
 	if(icon)
 	{

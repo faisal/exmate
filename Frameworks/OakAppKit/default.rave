@@ -6,6 +6,6 @@ target "${dirname}" {
 
 	sources src/*.{cc,mm}
 	cxx_tests tests/gui_*.mm
-	frameworks Carbon Cocoa AudioToolbox Quartz
+	frameworks Carbon Cocoa AudioToolbox Quartz UniformTypeIdentifiers
 	libraries sqlite3
 }

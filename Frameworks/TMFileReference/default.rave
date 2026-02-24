@@ -3,5 +3,5 @@ target "${dirname}" {
 	headers src/TMFileReference.h
 	sources src/*.mm
 	files resources/* "Resources/DocumentTypes"
-	frameworks Cocoa
+	frameworks Cocoa UniformTypeIdentifiers
 }

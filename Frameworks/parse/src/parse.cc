@@ -106,11 +106,9 @@ namespace parse
 	{
 		OnigOptionType res = ONIG_OPTION_NONE;
 		if(!isFirstLine)
-			res |= ONIG_OPTION_NOTBOS;
-		if(!isGPos)
-			res |= ONIG_OPTION_NOTGPOS;
+			res |= ONIG_OPTION_NOTBOL;
 		if(first != last && last[-1] == '\n')
-			res |= ONIG_OPTION_NOTEOS;
+			res |= ONIG_OPTION_NOTEOL;
 		return res;
 	}
 

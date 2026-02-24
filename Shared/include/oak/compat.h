@@ -1,42 +1,27 @@
 #ifndef COMPAT_H_RD1Z6YZA
 #define COMPAT_H_RD1Z6YZA
 
+#include <cstddef>
+
 namespace oak
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-	inline size_t get_gestalt (OSType selector)
+	inline NSOperatingSystemVersion get_os_version ()
 	{
-		SInt32 res;
-		return Gestalt(selector, &res) == noErr ? res : 0;
+		return [NSProcessInfo processInfo].operatingSystemVersion;
 	}
 
-	inline size_t os_major () { return get_gestalt(gestaltSystemVersionMajor); }
-	inline size_t os_minor () { return get_gestalt(gestaltSystemVersionMinor); }
-	inline size_t os_patch () { return get_gestalt(gestaltSystemVersionBugFix); }
+	inline size_t os_major () { return get_os_version().majorVersion; }
+	inline size_t os_minor () { return get_os_version().minorVersion; }
+	inline size_t os_patch () { return get_os_version().patchVersion; }
 
 	inline OSStatus execute_with_privileges (AuthorizationRef authorization, std::string const& pathToTool, AuthorizationFlags options, char* const* arguments, FILE** communicationsPipe)
 	{
+#warning "AuthorizationExecuteWithPrivileges is deprecated. Consider migrating to XPC service."
 		return AuthorizationExecuteWithPrivileges(authorization, pathToTool.c_str(), options, arguments, communicationsPipe);
 	}
-#pragma clang diagnostic pop
 
-	// As of macOS 12.0, this system call behaves identically to the fork(2) system call, except without calling any handlers registered with pthread_atfork(2).
-	// Consider migrating callers to posix_spawn();
 	inline pid_t vfork() {
-		NSOperatingSystemVersion monterey = {
-			.majorVersion = 12,
-			.minorVersion = 0,
-			.patchVersion = 0,
-		};
-		if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:monterey]) {
-			return fork();
-		} else {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-			return vfork();
-#pragma clang diagnostic pop
-		}
+		return fork();
 	}
 } /* oak */
 

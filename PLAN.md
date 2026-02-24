@@ -340,11 +340,15 @@ jobs:
 
 ---
 
-## PR 14: Xcode build integration — configure generates the Xcode project
+## PR 14: Xcode build integration — configure generates an Xcode project
 
-**What:** Extend `./configure` so that it updates `project.yml` to reflect the installed Xcode version, then runs `xcodegen` to generate `TextMate.xcodeproj`. Ensure all build-phase scripts work whether invoked from ninja or from Xcode.
+**What:** Extend `./configure` so that it updates `project.yml` to reflect the installed Xcode version, then runs `xcodegen` to generate `TextMate.xcodeproj`. The Xcode project should include targets for each of the main ninja targets (bl, CommitWindowTool, Dialog, Dialog2, gtm, indent, mate, NewApplication, pretty_plist, PrivilegedTool, TextMate, TextMateQL, tm_dialog, tm_dialog2, tm_query). In the Xcode project, TextMate is an app build target. mate is a command line tool target, and the other targets should be of the appropriate type for their output. Dialog and Dialog2 are bundles. bl, tm_dialog, tm_dialog2, gtm, indent, and pretty_plist are command line tools.
 
-**Why:** The Xcode project must be a first-class build path, not a stale artifact. This PR generates the Xcode project for final validation. Currently `project.yml` has `xcodeVersion: "26.0"` but the installed Xcode may differ — this should be auto-detected. Most targets in `project.yml` use directory-level source paths (xcodegen auto-discovers files), but vendor targets (Onigmo, kvdb) use explicit file lists that can drift.
+Many ninja targets have variants (e.g., `TextMate`, `TextMate/debug`, `TextMate/debug/run`, `TextMate/run`). The Build run scheme should execute the unadorned ninja target (e.g., `TextMate`). The Test scheme should run tests associated with each target.
+
+Ensure all build-phase scripts work whether invoked from ninja or from Xcode.
+
+**Why:** The upstream textmate project may change and yet we wish to be able to build with Xcode, so this Xcode project is a wrapper for what source exists on disk. The Xcode project must be a first-class build path, not a stale artifact. This PR generates the Xcode project for final validation. Currently `project.yml` has `xcodeVersion: "26.0"` but the installed Xcode may differ — this should be auto-detected. Most targets in `project.yml` use directory-level source paths (xcodegen auto-discovers files), but vendor targets (Onigmo, kvdb) use explicit file lists that can drift.
 
 **Files to create/modify:**
 
@@ -364,15 +368,6 @@ jobs:
   - Markdown→HTML via `multimarkdown` — requires `multimarkdown` in PATH ✓
   - Ragel build rules — requires `ragel` in PATH ✓
   - `bin/gen_xctest` test wrappers — uses `${SRCROOT}`, `${DERIVED_FILE_DIR}` ✓
-
-**Implementation notes (in progress):**
-- `bin/gen_xcodeproj` created; `bin/gen_xctest` created and rewritten (removed namespace wrapping that polluted transitive includes)
-- `configure` updated to call `bin/gen_xcodeproj`
-- `project.yml` updated: added `export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"` to capnp, ragel, and multimarkdown build scripts
-- `Frameworks/scope/src/scope.h` fixed: `std::hash<scope::scope_t>` specialization wrapped in `namespace std { }`
-- `Shared/include/test/OakTestMacros.h` updated: added `#include <oak/iterator_macros.h>` for `foreach` macro
-- `capnp` installed via Homebrew (build-time compiler dependency)
-- Main build succeeds; test compilation has remaining issues (e.g., `t_tokenize.cc` missing `#include <text/format.h>`)
 
 **Validation:**
 1. `./configure` succeeds and produces both `build.ninja` and `TextMate.xcodeproj`

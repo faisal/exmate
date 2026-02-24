@@ -42,8 +42,6 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 
 **Files to modify:**
 - `default.rave:1` — `APP_MIN_OS "10.12"` → `"13.0"`
-- `xcconfigs/Shared.xcconfig:4` — `MACOSX_DEPLOYMENT_TARGET = 10.12` → `13.0`
-- `project.yml:5,12` — both `"10.12"` → `"13.0"`
 - `Shared/include/oak/sdk-compat.h` — delete file entirely
 - Remove all `#include <oak/sdk-compat.h>` / `#import <oak/sdk-compat.h>` from prelude headers and any direct includers
 - Remove `@available(macOS 10.14, *)` and `@available(macOS 11.0, *)` guards that are now always-true (search across Frameworks/)
@@ -126,16 +124,12 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 **Files to create/modify:**
 - `.gitmodules` — add `vendor/capnp/vendor` pointing to `https://github.com/capnproto/capnproto.git` (pin to latest stable tag)
 - `vendor/capnp/` — new directory with build integration
-- `project.yml` — add two new static library targets:
   - `kj` — builds `libkj.a` from `vendor/capnp/vendor/c++/src/kj/*.c++` (excluding tests)
   - `capnp_lib` — builds `libcapnp.a` from `vendor/capnp/vendor/c++/src/capnp/*.c++` (excluding tests and compiler)
-- `xcconfigs/Vendor-capnp.xcconfig` — new file with capnp-specific settings (header paths, suppress warnings in vendor code, C++20 standard)
-- `xcconfigs/Shared.xcconfig` — remove `-lcapnp -lkj` from `OTHER_LDFLAGS`
-- `project.yml` encoding/plist targets — add dependencies on `kj`/`capnp_lib`, remove `-lcapnp -lkj` from their `OTHER_LDFLAGS`
 - `configure` — remove library checks for capnp/kj (keep compiler binary check)
-- `local.rave` / Shared.xcconfig — keep `/opt/homebrew/include` for boost/sparsehash, keep `/opt/homebrew/lib` only if still needed
+- `local.rave` — keep `/opt/homebrew/include` for boost/sparsehash, keep `/opt/homebrew/lib` only if still needed
 
-**Note:** Cap'n Proto's C++ source is self-contained but has many files. The Xcode target needs careful source file selection. I'll review the capnp CMakeLists.txt to identify exactly which `.c++` files to include for the runtime libraries (not the compiler, schema loader, or RPC layer unless needed). The exact upstream tag will be chosen at implementation time (latest stable then) and documented in the PR.
+**Note:** Cap'n Proto's C++ source is self-contained but has many files. I'll review the capnp CMakeLists.txt to identify exactly which `.c++` files to include for the runtime libraries (not the compiler, schema loader, or RPC layer unless needed). The exact upstream tag will be chosen at implementation time (latest stable then) and documented in the PR.
 
 **Validation:** Build succeeds without Homebrew capnp libraries installed (only the `capnp` compiler binary needed). `encodingTests` and `plistTests` pass.
 
@@ -153,7 +147,6 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `vendor/Onigmo/vendor` — update submodule to latest tag
 - `vendor/Onigmo/config.h` — regenerate for new version (update PACKAGE_VERSION, PACKAGE_STRING)
 - `vendor/Onigmo/src/setup.c` — review if still compatible with new version
-- `project.yml` Onigmo target — update source file list if new version adds/removes files in `enc/`
 - `Frameworks/regexp/src/` — verify API compatibility. Grep for `onig_` function calls and check they still exist
 
 **Risk:** Regex behavior changes could subtly affect syntax highlighting. Thorough testing of the regexp framework is essential.
@@ -211,7 +204,6 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 - `Frameworks/BundleEditor/src/` — any type identifier usage
 - `Frameworks/Preferences/src/` — any type identifier usage
 - Add `#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>` to affected files
-- `project.yml` — add `-framework UniformTypeIdentifiers` to OTHER_LDFLAGS for affected targets
 - Some `.cc` files may need conversion to `.mm` to use Obj-C UniformTypeIdentifiers API
 
 **Reference:** The `sonnet_all` branch (`remotes/exmate/sonnet_all`) — an earlier, abandoned attempt at the same modernization goals — has partial UTType migrations for these files. Use as directional guidance only; it was done under different assumptions and is incomplete.

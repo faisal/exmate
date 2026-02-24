@@ -2,7 +2,7 @@
 
 ## Context
 
-TextMate (exmate) currently targets macOS 10.12 (Sierra) and uses several deprecated APIs, a Homebrew-linked Cap'n Proto, an old Onigmo 5.13.5, and an SDK compatibility shim. The goal is to modernize the codebase to target macOS 13.0 (Ventura), vendor dependencies properly, address all deprecation warnings with real API migrations, and ensure the app builds, runs, and passes tests after each step for PRs 1-13 and 15. PR 14 (Xcode build integration) comes last to generate the Xcode project for final validation. After each step, the build should work as well or better than it did in the prior step, and testing should confirm that.
+TextMate (exmate) currently targets macOS 10.12 (Sierra) and uses several deprecated APIs, a Homebrew-linked Cap'n Proto, an old Onigmo 5.13.5, and an SDK compatibility shim. The goal is to modernize the codebase to target macOS 13.0 (Ventura), vendor dependencies properly, address all deprecation warnings with real API migrations, and ensure the app builds, runs, and passes tests after each step for PRs 1-13 and 15. PR 14 (Xcode build integration) comes last to generate the Xcode project. After each step, the build should work as well or better than it did in the prior step, and testing should confirm that.
 
 **Key decisions made:**
 - Minimum OS: macOS 13.0 (Ventura)
@@ -31,49 +31,6 @@ Several submodules are hosted in the `textmate` GitHub org. If any PR requires m
 **Existing forks with different names:** Some submodules already have `faisal` remotes with older naming (`faisal/dialog.git`, `faisal/dialog-1.x.git`, `faisal/kvdb.git`). The new convention uses `extmate-*` names. When a fork is needed, I will stop and provide instructions for creating it on GitHub before proceeding.
 
 **When a fork is created:** `.gitmodules` in the parent repo will be updated to point to the `extmate-*` fork URL so that `git submodule update --init --recursive` works for collaborators. The submodule will track the `sdk_update_three` branch.
-
----
-
-## PR 14: Xcode build integration — configure generates the Xcode project
-
-**What:** Extend `./configure` so that it updates `project.yml` to reflect the installed Xcode version, then runs `xcodegen` to generate `TextMate.xcodeproj`. Ensure all build-phase scripts work whether invoked from ninja or from Xcode.
-
-**Why:** The Xcode project must be a first-class build path, not a stale artifact. This PR generates the Xcode project for final validation. Currently `project.yml` has `xcodeVersion: "26.0"` but the installed Xcode may differ — this should be auto-detected. Most targets in `project.yml` use directory-level source paths (xcodegen auto-discovers files), but vendor targets (Onigmo, kvdb) use explicit file lists that can drift.
-
-**Files to create/modify:**
-
-- **`bin/gen_xcodeproj`** (new script) — a shell script that:
-  1. Checks that `xcodegen` is installed; exits with install instructions if not (`brew install xcodegen`)
-  2. Detects the installed Xcode version via `xcodebuild -version` and updates the `xcodeVersion:` field in `project.yml` (using `sed` or similar)
-  3. For vendor targets with explicit file lists (Onigmo, kvdb), validates that listed source files exist on disk and warns about any mismatches (new files on disk not in project.yml, or listed files missing from disk)
-  4. Runs `xcodegen generate` to produce/update `TextMate.xcodeproj`
-
-- **`configure`** — add a call to `bin/gen_xcodeproj` after the existing rave invocation, so `./configure` now produces both ninja build files and the Xcode project. If `xcodegen` is absent, warn but do not fail (the ninja build path still works without it).
-
-- **`build/include/` symlinks** — verify these symlinks (e.g., `build/include/text → ../../Frameworks/text/src`) are created by configure or gen_xcodeproj. The Xcode build's `HEADER_SEARCH_PATHS` includes `$(SRCROOT)/build/include` and depends on them. If they aren't created, add a step to gen_xcodeproj to create them.
-
-- **Build phase script audit** — confirm all `preBuildScripts` and build rules in `project.yml` use portable environment variables (`${SRCROOT}`, `${DERIVED_FILE_DIR}`, `${SCRIPT_INPUT_FILE}`) and invoke tools by name (not absolute path). Current scripts:
-  - Cap'n Proto code generation (encoding, plist) — uses `${SRCROOT}`, `${DERIVED_FILE_DIR}` ✓
-  - Version extraction from Changes.md — uses `${SRCROOT}` ✓
-  - Markdown→HTML via `multimarkdown` — requires `multimarkdown` in PATH ✓
-  - Ragel build rules — requires `ragel` in PATH ✓
-  - `bin/gen_xctest` test wrappers — uses `${SRCROOT}`, `${DERIVED_FILE_DIR}` ✓
-
-**Implementation notes (in progress):**
-- `bin/gen_xcodeproj` created; `bin/gen_xctest` created and rewritten (removed namespace wrapping that polluted transitive includes)
-- `configure` updated to call `bin/gen_xcodeproj`
-- `project.yml` updated: added `export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"` to capnp, ragel, and multimarkdown build scripts
-- `Frameworks/scope/src/scope.h` fixed: `std::hash<scope::scope_t>` specialization wrapped in `namespace std { }`
-- `Shared/include/test/OakTestMacros.h` updated: added `#include <oak/iterator_macros.h>` for `foreach` macro
-- `capnp` installed via Homebrew (build-time compiler dependency)
-- Main build succeeds; test compilation has remaining issues (e.g., `t_tokenize.cc` missing `#include <text/format.h>`)
-
-**Validation:**
-1. `./configure` succeeds and produces both `build.ninja` and `TextMate.xcodeproj`
-2. `xcodebuild build -scheme TextMate -configuration Debug` succeeds
-3. `xcodebuild test -scheme TextMate -configuration Debug` runs; pre-existing failing tests may remain for now and will be addressed in later planned steps (especially PR 13)
-4. The built `TextMate.app` launches and is functional (open a file, basic editing)
-5. Modify a source file, rebuild from Xcode — the change is picked up
 
 ---
 
@@ -380,6 +337,49 @@ jobs:
 ```
 
 **Validation:** `ninja -C build/release` passes all existing + new tests. CI workflow succeeds on push.
+
+---
+
+## PR 14: Xcode build integration — configure generates the Xcode project
+
+**What:** Extend `./configure` so that it updates `project.yml` to reflect the installed Xcode version, then runs `xcodegen` to generate `TextMate.xcodeproj`. Ensure all build-phase scripts work whether invoked from ninja or from Xcode.
+
+**Why:** The Xcode project must be a first-class build path, not a stale artifact. This PR generates the Xcode project for final validation. Currently `project.yml` has `xcodeVersion: "26.0"` but the installed Xcode may differ — this should be auto-detected. Most targets in `project.yml` use directory-level source paths (xcodegen auto-discovers files), but vendor targets (Onigmo, kvdb) use explicit file lists that can drift.
+
+**Files to create/modify:**
+
+- **`bin/gen_xcodeproj`** (new script) — a shell script that:
+  1. Checks that `xcodegen` is installed; exits with install instructions if not (`brew install xcodegen`)
+  2. Detects the installed Xcode version via `xcodebuild -version` and updates the `xcodeVersion:` field in `project.yml` (using `sed` or similar)
+  3. For vendor targets with explicit file lists (Onigmo, kvdb), validates that listed source files exist on disk and warns about any mismatches (new files on disk not in project.yml, or listed files missing from disk)
+  4. Runs `xcodegen generate` to produce/update `TextMate.xcodeproj`
+
+- **`configure`** — add a call to `bin/gen_xcodeproj` after the existing rave invocation, so `./configure` now produces both ninja build files and the Xcode project. If `xcodegen` is absent, warn but do not fail (the ninja build path still works without it).
+
+- **`build/include/` symlinks** — verify these symlinks (e.g., `build/include/text → ../../Frameworks/text/src`) are created by configure or gen_xcodeproj. The Xcode build's `HEADER_SEARCH_PATHS` includes `$(SRCROOT)/build/include` and depends on them. If they aren't created, add a step to gen_xcodeproj to create them.
+
+- **Build phase script audit** — confirm all `preBuildScripts` and build rules in `project.yml` use portable environment variables (`${SRCROOT}`, `${DERIVED_FILE_DIR}`, `${SCRIPT_INPUT_FILE}`) and invoke tools by name (not absolute path). Current scripts:
+  - Cap'n Proto code generation (encoding, plist) — uses `${SRCROOT}`, `${DERIVED_FILE_DIR}` ✓
+  - Version extraction from Changes.md — uses `${SRCROOT}` ✓
+  - Markdown→HTML via `multimarkdown` — requires `multimarkdown` in PATH ✓
+  - Ragel build rules — requires `ragel` in PATH ✓
+  - `bin/gen_xctest` test wrappers — uses `${SRCROOT}`, `${DERIVED_FILE_DIR}` ✓
+
+**Implementation notes (in progress):**
+- `bin/gen_xcodeproj` created; `bin/gen_xctest` created and rewritten (removed namespace wrapping that polluted transitive includes)
+- `configure` updated to call `bin/gen_xcodeproj`
+- `project.yml` updated: added `export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"` to capnp, ragel, and multimarkdown build scripts
+- `Frameworks/scope/src/scope.h` fixed: `std::hash<scope::scope_t>` specialization wrapped in `namespace std { }`
+- `Shared/include/test/OakTestMacros.h` updated: added `#include <oak/iterator_macros.h>` for `foreach` macro
+- `capnp` installed via Homebrew (build-time compiler dependency)
+- Main build succeeds; test compilation has remaining issues (e.g., `t_tokenize.cc` missing `#include <text/format.h>`)
+
+**Validation:**
+1. `./configure` succeeds and produces both `build.ninja` and `TextMate.xcodeproj`
+2. `xcodebuild build -scheme TextMate -configuration Debug` succeeds
+3. `xcodebuild test -scheme TextMate -configuration Debug` runs; pre-existing failing tests may remain for now and will be addressed in later planned steps (especially PR 13)
+4. The built `TextMate.app` launches and is functional (open a file, basic editing)
+5. Modify a source file, rebuild from Xcode — the change is picked up
 
 ---
 

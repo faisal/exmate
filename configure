@@ -14,8 +14,8 @@ if [[ -e local.rave ]]; then
 	echo >&2 "Skipping writing 'local.rave': File already exists"
 else
 	BREW_PREFIX="$(brew --prefix)"
-	echo >> local.rave "add FLAGS    \"-I${BREW_PREFIX}/include\""
 	echo >> local.rave "add FLAGS    \"-I\${dir}/vendor/capnp/vendor/c++/src\""
+	echo >> local.rave "add FLAGS    \"-I${BREW_PREFIX}/include\""
 	echo >> local.rave "add LN_FLAGS \"-L${BREW_PREFIX}/lib\""
 
 	for hdr in boost/{crc,variant}.hpp sparsehash/dense_hash_map; do

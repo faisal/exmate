@@ -35,6 +35,11 @@ lineEndings      = "\r\n"
 softTabs         = true
 tabSize          = 2
 
+[ source.ruby ]
+# TM_RUBY = "/usr/bin/ruby"      # Use system Ruby (default)
+# TM_RUBY = "/opt/homebrew/opt/ruby/bin/ruby"  # Use Homebrew Ruby
+# TM_RUBY = "~/.rubies/ruby-3.2.0/bin/ruby"    # Use chruby Ruby
+
 [ source.python ]
 softTabs         = true
 tabSize          = 4

@@ -132,10 +132,23 @@ static pid_t run_command (dispatch_group_t rootGroup, std::string const& cmd, in
 
 namespace command
 {
-	void fix_shebang (std::string* command)
+	void fix_shebang (std::string* command, std::map<std::string, std::string> const& environment)
 	{
 		if(command->substr(0, 2) != "#!")
+		{
 			command->insert(0, "#!/bin/bash\n[[ -f \"${TM_SUPPORT_PATH}/lib/bash_init.sh\" ]] && . \"${TM_SUPPORT_PATH}/lib/bash_init.sh\"\n\n");
+			return;
+		}
+
+		auto it = environment.find("TM_RUBY");
+		if(it != environment.end() && !it->second.empty())
+		{
+			std::string const& rubyPath = it->second;
+			if(command->find("#!/usr/bin/env ruby") == 0 || command->find("#!/usr/bin/env ruby") != std::string::npos)
+			{
+				command->replace(command->find("#!/usr/bin/env ruby"), strlen("#!/usr/bin/env ruby"), rubyPath);
+			}
+		}
 	}
 
 	static NSString* hash (NSData* data)
@@ -172,7 +185,7 @@ namespace command
 	runner_t::runner_t (bundle_command_t const& command, ng::buffer_api_t const& buffer, ng::ranges_t const& selection, std::map<std::string, std::string> const& environment, std::string const& pwd, delegate_ptr delegate) : _command(command), _environment(environment), _directory(pwd), _delegate(delegate), _input_was_selection(false), _did_detach(false)
 	{
 		_dispatch_group = dispatch_group_create();
-		fix_shebang(&_command.command);
+		fix_shebang(&_command.command, environment);
 	}
 
 	runner_ptr runner (bundle_command_t const& command, ng::buffer_api_t const& buffer, ng::ranges_t const& selection, std::map<std::string, std::string> const& environment, delegate_ptr delegate, std::string const& pwd)

@@ -10,7 +10,7 @@
 
 namespace command
 {
-	void fix_shebang (std::string* command);
+	void fix_shebang (std::string* command, std::map<std::string, std::string> const& environment = {});
 	std::string create_script_path (std::string const& command);
 
 	struct delegate_t;

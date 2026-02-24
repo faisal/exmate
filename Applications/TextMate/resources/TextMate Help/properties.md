@@ -50,6 +50,26 @@ The first setting effectively sets `TM_PROJECT_DIRECTORY` to `~/Source/Avian`. I
 
 What this does is set the make target based on the current directory. So if I am editing `~/Source/Avian/Applications/mate/src/main.cc` ⌘B will make `mate/run` whereas if I am in `~/Source/Avian/Applications/Avian/src/main.cc` it will make `Avian/run`.
 
+## Ruby Version
+
+Bundle commands with a Ruby shebang (e.g., `#!/usr/bin/env ruby`) use the system Ruby by default (`/usr/bin/ruby` on macOS 13+). To use a different Ruby version, set the `TM_RUBY` variable in your `.tm_properties`:
+
+	# Use Homebrew Ruby
+	TM_RUBY = "/opt/homebrew/opt/ruby/bin/ruby"
+
+	# Use chruby Ruby
+	TM_RUBY = "~/.rubies/ruby-3.2.0/bin/ruby"
+
+	# Use rbenv Ruby
+	TM_RUBY = "~/.rbenv/shims/ruby"
+
+You can set this globally in `~/.tm_properties` or per-project in your project's `.tm_properties`.
+
+For Ruby-specific settings, you can use a scoped section:
+
+	[ source.ruby ]
+	TM_RUBY = "/usr/bin/ruby"
+
 ## Grammar
 
 The grammar used to parse the `.tm_properties` files are as below. Whitespace (in the form of spaces or tabs) is allowed between elements.

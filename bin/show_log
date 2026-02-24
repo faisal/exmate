@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby -wKU
+#!/usr/bin/ruby -wKU --disable-gems
 require 'pathname'
 
 def pretty(txt, width, indent)

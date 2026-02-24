@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby -w
+#!/usr/bin/ruby -w --disable-gems
 #
 # https://developer.apple.com/library/mac/#technotes/tn2004/tn2123.html
 require "fileutils"

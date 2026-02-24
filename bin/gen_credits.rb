@@ -3,7 +3,6 @@
 #
 # Module to assist in building the Contributors page using git commit history.
 #
-$KCODE = 'U' if RUBY_VERSION < "1.9"
 
 require 'digest/md5'
 require 'fileutils'

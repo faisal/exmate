@@ -19,10 +19,6 @@ namespace oak
 #warning "AuthorizationExecuteWithPrivileges is deprecated. Consider migrating to XPC service."
 		return AuthorizationExecuteWithPrivileges(authorization, pathToTool.c_str(), options, arguments, communicationsPipe);
 	}
-
-	inline pid_t vfork() {
-		return fork();
-	}
 } /* oak */
 
 #endif /* end of include guard: COMPAT_H_RD1Z6YZA */

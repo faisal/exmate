@@ -67,44 +67,66 @@ static std::tuple<pid_t, int, int> my_fork (char const* cmd, int inputRead, std:
 	std::tie(outputRead, outputWrite) = io::create_pipe();
 	std::tie(errorRead,  errorWrite)  = io::create_pipe();
 
-	oak::c_array env(environment);
-
-	pid_t pid = oak::vfork();
-	if(pid == 0)
+	posix_spawn_file_actions_t fileActions;
+	if(posix_spawn_file_actions_init(&fileActions) != 0)
 	{
-		int const signals[] = { SIGINT, SIGTERM, SIGPIPE, SIGUSR1 };
-		for(int sig : signals) signal(sig, SIG_DFL);
-
-		int const oldOutErr[] = { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO };
-		int const newOutErr[] = { inputRead, outputWrite, errorWrite };
-
-		for(int fd = getdtablesize(); --fd > STDERR_FILENO; )
-		{
-			int flags = fcntl(fd, F_GETFD);
-			if((flags == -1 && errno == EBADF) || (flags & FD_CLOEXEC) == FD_CLOEXEC)
-				continue;
-
-			if(close(fd) == -1)
-			{
-				perror("close");
-				_exit(EXIT_FAILURE);
-			}
-		}
-
-		for(int fd : oldOutErr) close(fd);
-		for(int fd : newOutErr) dup(fd);
-
-		setpgid(0, getpid());
-		chdir(workingDir);
-
-		char* argv[] = { (char*)cmd, NULL };
-		execve(argv[0], argv, env);
-		perror("execve");
-		_exit(EXIT_FAILURE);
+		perror("posix_spawn_file_actions_init");
+		close(inputRead);
+		close(outputRead);
+		close(errorRead);
+		return { -1, -1, -1 };
 	}
 
-	int const fds[] = { outputWrite, errorWrite };
-	for(int fd : fds) close(fd);
+	posix_spawn_file_actions_adddup2(&fileActions, inputRead, STDIN_FILENO);
+	posix_spawn_file_actions_adddup2(&fileActions, outputWrite, STDOUT_FILENO);
+	posix_spawn_file_actions_adddup2(&fileActions, errorWrite, STDERR_FILENO);
+	posix_spawn_file_actions_addclose(&fileActions, inputRead);
+	posix_spawn_file_actions_addclose(&fileActions, outputWrite);
+	posix_spawn_file_actions_addclose(&fileActions, errorWrite);
+
+	if(workingDir)
+		posix_spawn_file_actions_addchdir_np(&fileActions, workingDir);
+
+	posix_spawnattr_t flags;
+	if(posix_spawnattr_init(&flags) != 0)
+	{
+		perror("posix_spawnattr_init");
+		posix_spawn_file_actions_destroy(&fileActions);
+		close(inputRead);
+		close(outputRead);
+		close(errorRead);
+		return { -1, -1, -1 };
+	}
+
+	sigset_t signalSet;
+	sigemptyset(&signalSet);
+	sigaddset(&signalSet, SIGINT);
+	sigaddset(&signalSet, SIGTERM);
+	sigaddset(&signalSet, SIGPIPE);
+	sigaddset(&signalSet, SIGUSR1);
+	posix_spawnattr_setsigdefault(&flags, &signalSet);
+	posix_spawnattr_setpgroup(&flags, 0);
+
+	char* argv[] = { (char*)cmd, NULL };
+	oak::c_array env(environment);
+
+	pid_t pid;
+	int rc = posix_spawn(&pid, cmd, &fileActions, &flags, argv, env);
+
+	posix_spawnattr_destroy(&flags);
+	posix_spawn_file_actions_destroy(&fileActions);
+
+	close(inputRead);
+	close(outputWrite);
+	close(errorWrite);
+
+	if(rc != 0)
+	{
+		perrorf("posix_spawn: %{public}s", cmd);
+		close(outputRead);
+		close(errorRead);
+		return { -1, -1, -1 };
+	}
 
 	return { pid, outputRead, errorRead };
 }

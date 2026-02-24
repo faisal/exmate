@@ -44,16 +44,20 @@ static std::string plist_content ()
 
 static void launch_control (char const* command, std::string const& argument)
 {
-	pid_t pid = oak::vfork();
-	if(pid == 0)
-	{
-		execl("/bin/launchctl", "/bin/launchctl", command, argument.c_str(), nullptr);
-		perror("execl(\"/bin/launchctl\")");
-		_exit(EXIT_FAILURE);
-	}
+	char* argv[] = { (char*)"/bin/launchctl", (char*)command, (char*)argument.c_str(), NULL };
 
-	int status = 0;
-	waitpid(pid, &status, 0);
+	pid_t pid;
+	int rc = posix_spawn(&pid, "/bin/launchctl", NULL, NULL, argv, NULL);
+
+	if(rc == 0)
+	{
+		int status = 0;
+		waitpid(pid, &status, 0);
+	}
+	else
+	{
+		fprintf(stderr, "posix_spawn: %s\n", strerror(rc));
+	}
 }
 
 static void remove_policy ()

@@ -85,22 +85,24 @@ static void install_auth_tool ()
 		char const* arg0 = toolURL.fileSystemRepresentation;
 		if(access(arg0, X_OK) != 0)
 		{
-			fprintf(stderr, "No such executable file: ‘%s’\n", arg0);
+			fprintf(stderr, "No such executable file: '%s'\n", arg0);
 			exit(EX_UNAVAILABLE);
 		}
 
-		pid_t pid = oak::vfork();
-		if(pid == 0)
-		{
-			execl(arg0, arg0, "--install", nullptr);
-			_exit(errno);
-		}
+		char* argv[] = { (char*)arg0, (char*)"--install", NULL };
 
-		if(pid != -1)
+		pid_t pid;
+		int rc = posix_spawn(&pid, arg0, NULL, NULL, argv, NULL);
+
+		if(rc == 0 && pid != -1)
 		{
 			int status = 0;
 			if(waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) != 0)
 				fprintf(stderr, "%s: %s\n", arg0, strerror(WEXITSTATUS(status)));
+		}
+		else if(rc != 0)
+		{
+			fprintf(stderr, "posix_spawn: %s\n", strerror(rc));
 		}
 	}
 }

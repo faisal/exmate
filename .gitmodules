@@ -16,3 +16,6 @@
 [submodule "vendor/kvdb/vendor"]
 	path = vendor/kvdb/vendor
 	url = https://github.com/textmate/kvdb.git
+[submodule "vendor/capnp/vendor"]
+	path = vendor/capnp/vendor
+	url = https://github.com/capnproto/capnproto.git

@@ -6,22 +6,20 @@ function error () { printf >&2 "%s\n\nPlease see README.md for build instruction
 # = Check required dependencies =
 # ===============================
 
-for dep in capnp ninja ragel multimarkdown pgrep pkill; do
-	which -s "$dep" || error "*** dependency missing: ‘${dep}’."
+for dep in ninja ragel multimarkdown pgrep pkill; do
+	which -s "$dep" || error "*** dependency missing: '${dep}'."
 done
 
 if [[ -e local.rave ]]; then
-	echo >&2 "Skipping writing ‘local.rave’: File already exists"
+	echo >&2 "Skipping writing 'local.rave': File already exists"
 else
-	echo >> local.rave "add FLAGS    \"-I$(brew --prefix)/include"\"
-	echo >> local.rave "add LN_FLAGS \"-L$(brew --prefix)/lib\""
+	BREW_PREFIX="$(brew --prefix)"
+	echo >> local.rave "add FLAGS    \"-I${BREW_PREFIX}/include\""
+	echo >> local.rave "add FLAGS    \"-I\${dir}/vendor/capnp/vendor/c++/src\""
+	echo >> local.rave "add LN_FLAGS \"-L${BREW_PREFIX}/lib\""
 
-	for hdr in boost/{crc,variant}.hpp capnp/{message,serialize-packed}.h sparsehash/dense_hash_map; do
-		test -f "$(brew --prefix)/include/${hdr}" || error "*** dependency missing: ‘$(brew --prefix)/include/${hdr}’. Install dependency and/or update ‘local.rave’ with correct path."
-	done
-
-	for lib in capnp kj; do
-		test -f "$(brew --prefix)/lib/lib${lib}."* || error "*** dependency missing: ‘$(brew --prefix)/lib/lib${lib}.*’. Install dependency and/or update ‘local.rave’ with correct path."
+	for hdr in boost/{crc,variant}.hpp sparsehash/dense_hash_map; do
+		test -f "${BREW_PREFIX}/include/${hdr}" || error "*** dependency missing: '${BREW_PREFIX}/include/${hdr}'. Install dependency and/or update 'local.rave' with correct path."
 	done
 fi
 

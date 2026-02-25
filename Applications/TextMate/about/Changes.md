@@ -2,6 +2,15 @@ Title: Release Notes
 
 # Changes
 
+## 2026-02-25 (v2.1-alpha)
+
+* Rebuilt with modern macOS SDK, including a number of changes to newer APIs
+* Raised minimum deployment target to macOS 13
+* Changed build scripts to always rely on the system Ruby
+* Updated to latest Onigmo
+* Migrated vfork callers to posix_spawn
+
+
 ## 2021-10-12 (v2.0.23)
 
 * Miscellaneous improvements, [see changes since v2.0.22 on GitHub](https://github.com/textmate/textmate/compare/v2.0.22...v2.0.23)

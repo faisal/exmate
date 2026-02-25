@@ -16,21 +16,26 @@
 
 - (void)dealloc
 {
-	self.webFrame = nil;
+	self.webView = nil;
 }
 
-- (void)setWebFrame:(WebFrameView*)aWebFrame
+- (NSScrollView*)scrollView
 {
-	if(aWebFrame == _webFrame)
+	return [_webView enclosingScrollView];
+}
+
+- (void)setWebView:(WKWebView*)aWebView
+{
+	if(aWebView == _webView)
 		return;
 
-	if(_webFrame = aWebFrame)
+	if(_webView = aWebView)
 	{
 		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(webViewDidChangeFrame:) name:NSViewFrameDidChangeNotification object:nil];
 		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(webViewDidChangeBounds:) name:NSViewBoundsDidChangeNotification object:nil];
 
-		_lastFrame       = [[_webFrame documentView] frame];
-		_lastVisibleRect = [[_webFrame documentView] visibleRect];
+		_lastFrame       = [self.scrollView.documentView frame];
+		_lastVisibleRect = [self.scrollView.documentView visibleRect];
 	}
 	else
 	{
@@ -41,20 +46,20 @@
 
 - (void)webViewDidChangeBounds:(NSNotification*)aNotification
 {
-	NSClipView* clipView = [[[_webFrame documentView] enclosingScrollView] contentView];
+	NSClipView* clipView = [self.scrollView contentView];
 	if(clipView != [aNotification object])
 		return;
 
-	_lastVisibleRect = [[clipView documentView] visibleRect];
+	_lastVisibleRect = [clipView.documentView visibleRect];
 }
 
 - (void)webViewDidChangeFrame:(NSNotification*)aNotification
 {
 	NSView* view = [aNotification object];
-	if(view != _webFrame && view != [_webFrame documentView])
+	if(view != self.scrollView && view != self.scrollView.documentView)
 		return;
 
-	if(view == [_webFrame documentView])
+	if(view == self.scrollView.documentView)
 	{
 		if(NSMaxY(_lastVisibleRect) >= NSMaxY(_lastFrame))
 		{
@@ -64,10 +69,10 @@
 		_lastFrame = [view frame];
 	}
 
-	if(view == _webFrame)
+	if(view == self.scrollView)
 	{
 		if(NSMaxY(_lastVisibleRect) >= NSMaxY(_lastFrame))
-			[self scrollViewToBottom:[_webFrame documentView]];
+			[self scrollViewToBottom:self.scrollView.documentView];
 	}
 }
 @end

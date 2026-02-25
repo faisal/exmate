@@ -1,6 +1,7 @@
 #import "HOBrowserView.h"
 #import "HOWebViewDelegateHelper.h"
 #import "HOStatusBar.h"
+#import "../helpers/HOJSBridge.h"
 #import <OakAppKit/OakUIConstructionFunctions.h>
 
 static NSString* EscapeHTML (NSString* str)
@@ -8,15 +9,15 @@ static NSString* EscapeHTML (NSString* str)
 	return [[[str stringByReplacingOccurrencesOfString:@"&" withString:@"&amp;"] stringByReplacingOccurrencesOfString:@"<" withString:@"&lt;"] stringByReplacingOccurrencesOfString:@"\"" withString:@"&quot;"];
 }
 
-static void ShowLoadErrorForURL (WebFrame* frame, NSURL* url, NSError* error)
+static void ShowLoadErrorForURL (WKWebView* webView, NSURL* url, NSError* error)
 {
 	NSString* options  = [[url scheme] isEqualToString:@"file"] ? @" -R" : @"";
 	NSString* errorMsg = [NSString stringWithFormat:@"<title>Load Error</title><h1>Load Error</h1><p>WebKit reported <em>%@</em> while loading <tt><a href=\"#\" onClick=\"javascript:TextMate.system('/usr/bin/open%@ &quot;%@&quot;', null)\">%@</a></tt>.</p>", EscapeHTML([error localizedDescription]), options, EscapeHTML([url absoluteString]), EscapeHTML([url absoluteString])];
-	[frame loadHTMLString:errorMsg baseURL:[NSURL fileURLWithPath:NSTemporaryDirectory()]];
+	[webView loadHTMLString:errorMsg baseURL:[NSURL fileURLWithPath:NSTemporaryDirectory()]];
 }
 
-@interface HOBrowserView () <WebPolicyDelegate, WebUIDelegate, WebResourceLoadDelegate>
-@property (nonatomic, readwrite) WebView* webView;
+@interface HOBrowserView () <WKUIDelegate>
+@property (nonatomic, readwrite) WKWebView* webView;
 @property (nonatomic, readwrite) HOStatusBar* statusBar;
 @property (nonatomic) HOWebViewDelegateHelper* webViewDelegateHelper;
 @end
@@ -26,22 +27,25 @@ static void ShowLoadErrorForURL (WebFrame* frame, NSURL* url, NSError* error)
 {
 	if(self = [super initWithFrame:frame])
 	{
-		_webView = [[WebView alloc] initWithFrame:NSZeroRect];
+		HOJSBridge* jsBridge = [HOJSBridge new];
+		[jsBridge setDelegate:_statusBar];
 
-		NSString* const kHTMLOutputPreferencesIdentifier = @"HTML Output Preferences Identifier";
-		WebPreferences* webViewPrefs = [[WebPreferences alloc] initWithIdentifier:kHTMLOutputPreferencesIdentifier];
-		webViewPrefs.plugInsEnabled = NO;
-		self.webView.preferencesIdentifier = kHTMLOutputPreferencesIdentifier;
+		WKWebViewConfiguration* webConfig = [[WKWebViewConfiguration alloc] init];
+		webConfig.preferences.javaScriptCanOpenWindowsAutomatically = NO;
+		[webConfig.userContentController addScriptMessageHandler:jsBridge name:@"textmate"];
+
+		WKUserScript* script = [[WKUserScript alloc] initWithSource:[HOJSBridge javaScriptBridge] injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES];
+		[webConfig.userContentController addUserScript:script];
+
+		_webView = [[WKWebView alloc] initWithFrame:NSZeroRect configuration:webConfig];
 
 		_statusBar = [[HOStatusBar alloc] initWithFrame:NSZeroRect];
 		_statusBar.delegate = _webView;
 
 		_webViewDelegateHelper          = [HOWebViewDelegateHelper new];
 		_webViewDelegateHelper.delegate = _statusBar;
-		_webView.policyDelegate         = self;
-		_webView.resourceLoadDelegate   = _webViewDelegateHelper;
-		_webView.UIDelegate             = _webViewDelegateHelper;
-		_webView.frameLoadDelegate      = self;
+		_webView.navigationDelegate     = self;
+		_webView.UIDelegate            = _webViewDelegateHelper;
 
 		NSDictionary* views = @{
 			@"webView":   _webView,
@@ -69,26 +73,28 @@ static void ShowLoadErrorForURL (WebFrame* frame, NSURL* url, NSError* error)
 - (void)dealloc
 {
 	[self setUpdatesProgress:NO];
-	_webView.frameLoadDelegate      = nil;
-	_webView.UIDelegate             = nil;
-	_webView.resourceLoadDelegate   = nil;
-	_webView.policyDelegate         = nil;
-	[[_webView mainFrame] stopLoading];
+	_webView.navigationDelegate = nil;
+	_webView.UIDelegate        = nil;
+	[_webView stopLoading];
 }
 
 - (void)setUpdatesProgress:(BOOL)flag
 {
 	if(flag)
 	{
-		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(webViewProgressEstimateChanged:) name:WebViewProgressFinishedNotification object:_webView];
-		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(webViewProgressEstimateChanged:) name:WebViewProgressEstimateChangedNotification object:_webView];
-		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(webViewProgressEstimateChanged:) name:WebViewProgressStartedNotification object:_webView];
+		[_webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:nil];
 	}
 	else
 	{
-		[NSNotificationCenter.defaultCenter removeObserver:self name:WebViewProgressStartedNotification object:_webView];
-		[NSNotificationCenter.defaultCenter removeObserver:self name:WebViewProgressEstimateChangedNotification object:_webView];
-		[NSNotificationCenter.defaultCenter removeObserver:self name:WebViewProgressFinishedNotification object:_webView];
+		[_webView removeObserver:self forKeyPath:@"estimatedProgress"];
+	}
+}
+
+- (void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id>*)change context:(void*)context
+{
+	if([keyPath isEqualToString:@"estimatedProgress"])
+	{
+		_statusBar.progress = _webView.estimatedProgress;
 	}
 }
 
@@ -156,9 +162,9 @@ in the hierachy returns YES, the key (equivalent) event is then passed to the me
 		if(phase == NSEventPhaseEnded)
 		{
 			if(gestureAmount > 0 && _webView.canGoBack)
-				[_webView goBack:self];
+				[_webView goBack];
 			else if(gestureAmount < 0 && _webView.canGoForward)
-				[_webView goForward:self];
+				[_webView goForward];
 		}
 
 		if(isComplete)
@@ -168,32 +174,38 @@ in the hierachy returns YES, the key (equivalent) event is then passed to the me
 	}];
 }
 
-// =======================
-// = Frame Load Delegate =
-// =======================
+// ===========================
+// = WKNavigationDelegate =
+// ===========================
 
-- (void)webView:(WebView*)sender didStartProvisionalLoadForFrame:(WebFrame*)frame
+- (void)webView:(WKWebView*)webView didStartProvisionalNavigation:(WKNavigation*)navigation
 {
 	_statusBar.busy = YES;
 	[self setUpdatesProgress:YES];
 }
 
-- (void)webView:(WebView*)sender didFailProvisionalLoadWithError:(NSError*)error forFrame:(WebFrame*)frame
+- (void)webView:(WKWebView*)webView didFailProvisionalNavigation:(WKNavigation*)navigation withError:(NSError*)error
 {
-	ShowLoadErrorForURL(frame, [[[frame provisionalDataSource] request] URL], error);
-	[self webView:sender didFinishLoadForFrame:frame];
+	ShowLoadErrorForURL(webView, webView.URL, error);
+	_statusBar.canGoBack    = webView.canGoBack;
+	_statusBar.canGoForward = webView.canGoForward;
+	_statusBar.busy         = NO;
+	_statusBar.progress     = 0;
 }
 
-- (void)webView:(WebView*)sender didFailLoadWithError:(NSError*)error forFrame:(WebFrame*)frame
+- (void)webView:(WKWebView*)webView didFailNavigation:(WKNavigation*)navigation withError:(NSError*)error
 {
-	ShowLoadErrorForURL(frame, [[[frame provisionalDataSource] request] URL], error);
-	[self webView:sender didFinishLoadForFrame:frame];
+	ShowLoadErrorForURL(webView, webView.URL, error);
+	_statusBar.canGoBack    = webView.canGoBack;
+	_statusBar.canGoForward = webView.canGoForward;
+	_statusBar.busy         = NO;
+	_statusBar.progress     = 0;
 }
 
-- (void)webView:(WebView*)sender didFinishLoadForFrame:(WebFrame*)frame
+- (void)webView:(WKWebView*)webView didFinishNavigation:(WKNavigation*)navigation
 {
-	_statusBar.canGoBack    = _webView.canGoBack;
-	_statusBar.canGoForward = _webView.canGoForward;
+	_statusBar.canGoBack    = webView.canGoBack;
+	_statusBar.canGoForward = webView.canGoForward;
 	_statusBar.busy         = NO;
 	_statusBar.progress     = 0;
 }

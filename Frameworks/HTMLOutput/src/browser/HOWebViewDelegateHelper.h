@@ -1,8 +1,10 @@
+#import <WebKit/WebKit.h>
+
 @protocol HOWebViewDelegateHelperProtocol
 @property (nonatomic) NSString* statusText;
 @end
 
-@interface HOWebViewDelegateHelper : NSObject <WebResourceLoadDelegate, WebUIDelegate>
+@interface HOWebViewDelegateHelper : NSObject <WKUIDelegate>
 @property (nonatomic, weak) id /*<HOWebViewDelegateHelperProtocol>*/ delegate;
 @property (nonatomic) BOOL needsNewWebView;
 @end

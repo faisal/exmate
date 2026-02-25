@@ -1,3 +1,5 @@
+#import <WebKit/WebKit.h>
+
 @interface HOAutoScroll : NSObject
-@property (nonatomic) WebFrameView* webFrame;
+@property (nonatomic) WKWebView* webView;
 @end

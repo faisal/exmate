@@ -1,9 +1,11 @@
+#import "../helpers/HOJSBridge.h"
+
 @protocol HOStatusBarDelegate
 - (void)goBack:(id)sender;
 - (void)goForward:(id)sender;
 @end
 
-@interface HOStatusBar : NSVisualEffectView
+@interface HOStatusBar : NSVisualEffectView <HOJSBridgeDelegate>
 @property (nonatomic, weak) id              delegate;
 
 @property (nonatomic) NSString*             statusText;

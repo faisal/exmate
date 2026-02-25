@@ -14,7 +14,6 @@ static BOOL IsProtocolRelativeURL (NSURL* url)
 
 	if([url.scheme isEqualToString:@"file"] && url.host)
 	{
-		// If host has a dot and does not exist on disk then treat as protocol-relative URL
 		if([url.host containsString:@"."] && ![NSFileManager.defaultManager fileExistsAtPath:[@"/" stringByAppendingPathComponent:url.host]])
 			return YES;
 	}
@@ -30,95 +29,13 @@ static BOOL IsProtocolRelativeURL (NSURL* url)
 	}];
 }
 
-// =====================
-// = WebViewUIDelegate =
-// =====================
+// ===================
+// = WKUIDelegate =
+// ===================
 
-- (void)webView:(WebView*)sender setStatusText:(NSString*)text
+- (void)webView:(WKWebView*)webView decidePolicyForNavigationAction:(WKNavigationAction*)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
 {
-	[_delegate setStatusText:(text ?: @"")];
-}
-
-- (NSString*)webViewStatusText:(WebView*)sender
-{
-	return [_delegate statusText];
-}
-
-- (void)webView:(WebView*)sender mouseDidMoveOverElement:(NSDictionary*)elementInformation modifierFlags:(NSUInteger)modifierFlags
-{
-	NSURL* url = [elementInformation objectForKey:@"WebElementLinkURL"];
-	[self webView:sender setStatusText:[[url absoluteString] stringByRemovingPercentEncoding]];
-}
-
-- (void)webView:(WebView*)sender runJavaScriptAlertPanelWithMessage:(NSString*)message initiatedByFrame:(WebFrame*)frame
-{
-	NSAlert* alert = [NSAlert tmAlertWithMessageText:NSLocalizedString(@"Script Message", @"JavaScript alert title") informativeText:message buttons:NSLocalizedString(@"OK", @"JavaScript alert confirmation"), nil];
-	[alert beginSheetModalForWindow:[sender window] completionHandler:nil];
-}
-
-- (BOOL)webView:(WebView*)sender runJavaScriptConfirmPanelWithMessage:(NSString*)message initiatedByFrame:(WebFrame*)frame
-{
-	NSAlert* alert        = [[NSAlert alloc] init];
-	alert.messageText     = NSLocalizedString(@"Script Message", @"JavaScript alert title");
-	alert.informativeText = message;
-	[alert addButtons:NSLocalizedString(@"OK", @"JavaScript alert confirmation"), NSLocalizedString(@"Cancel", @"JavaScript alert cancel"), nil];
-	return [alert runModal] == NSAlertFirstButtonReturn;
-}
-
-- (void)webView:(WebView*)sender runOpenPanelForFileButtonWithResultListener:(id <WebOpenPanelResultListener>)resultListener
-{
-	NSOpenPanel* panel = [NSOpenPanel openPanel];
-	[panel setDirectoryURL:[NSURL fileURLWithPath:NSHomeDirectory()]];
-	if([panel runModal] == NSModalResponseOK)
-		[resultListener chooseFilename:[[[panel URLs] objectAtIndex:0] path]];
-}
-
-- (WebView*)webView:(WebView*)sender createWebViewWithRequest:(NSURLRequest*)request
-{
-	NSPoint origin = [sender.window cascadeTopLeftFromPoint:NSMakePoint(NSMinX(sender.window.frame), NSMaxY(sender.window.frame))];
-	origin.y -= NSHeight(sender.window.frame);
-
-	HOBrowserView* view = [HOBrowserView new];
-	NSWindow* window = [[NSWindow alloc] initWithContentRect:(NSRect){origin, NSMakeSize(750, 800)}
-																  styleMask:(NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskResizable|NSWindowStyleMaskMiniaturizable)
-																	 backing:NSBackingStoreBuffered
-																		defer:NO];
-	[window bind:NSTitleBinding toObject:view.webView withKeyPath:@"mainFrameTitle" options:nil];
-	[window setContentView:view];
-	[[view.webView mainFrame] loadRequest:request];
-
-	__attribute__ ((unused)) CFTypeRef dummy = CFBridgingRetain(window);
-	[window setReleasedWhenClosed:YES];
-
-	return view.webView;
-}
-
-- (void)webViewShow:(WebView*)sender
-{
-	[[sender window] makeKeyAndOrderFront:self];
-}
-
-- (void)webViewClose:(WebView*)sender
-{
-	if(![sender tryToPerform:@selector(toggleHTMLOutput:) with:self])
-		[sender tryToPerform:@selector(performClose:) with:self];
-	// We cannot re-use WebView objects where window.close() has been executed because of https://bugs.webkit.org/show_bug.cgi?id=121232
-	self.needsNewWebView = YES;
-}
-
-// This is an undocumented WebView delegate method
-- (void)webView:(WebView*)webView addMessageToConsole:(NSDictionary*)dictionary;
-{
-	if([dictionary respondsToSelector:@selector(objectForKey:)])
-		os_log(OS_LOG_DEFAULT, "%{public}@: %{public}@ on line %d\n", webView.mainFrame.dataSource.request.URL.absoluteString, [dictionary objectForKey:@"message"], [[dictionary objectForKey:@"lineNumber"] intValue]);
-}
-
-// =====================================================
-// = WebResourceLoadDelegate: Redirect tm-file to file =
-// =====================================================
-
-- (NSURLRequest*)webView:(WebView*)sender resource:(id)identifier willSendRequest:(NSURLRequest*)request redirectResponse:(NSURLResponse*)redirectResponse fromDataSource:(WebDataSource*)dataSource
-{
+	NSURLRequest* request = navigationAction.request;
 	if([[[request URL] scheme] isEqualToString:@"tm-file"])
 	{
 		NSString* fragment = [[request URL] fragment];
@@ -162,7 +79,55 @@ static BOOL IsProtocolRelativeURL (NSURL* url)
 			request = [NSURLRequest requestWithURL:redirectURL];
 	}
 
-	return request;
+	decisionHandler(WKNavigationActionPolicyAllow);
+}
+
+- (void)webView:(WKWebView*)webView runJavaScriptAlertPanelWithMessage:(NSString*)message initiatedByFrame:(WKFrameInfo*)frame completionHandler:(void (^)(void))completionHandler
+{
+	NSAlert* alert = [NSAlert tmAlertWithMessageText:NSLocalizedString(@"Script Message", @"JavaScript alert title") informativeText:message buttons:NSLocalizedString(@"OK", @"JavaScript alert confirmation"), nil];
+	[alert beginSheetModalForWindow:[webView window] completionHandler:^(NSModalResponse returnCode) {
+		completionHandler();
+	}];
+}
+
+- (void)webView:(WKWebView*)webView runJavaScriptConfirmPanelWithMessage:(NSString*)message initiatedByFrame:(WKFrameInfo*)frame completionHandler:(void (^)(BOOL))completionHandler
+{
+	NSAlert* alert        = [[NSAlert alloc] init];
+	alert.messageText     = NSLocalizedString(@"Script Message", @"JavaScript alert title");
+	alert.informativeText = message;
+	[alert addButtons:NSLocalizedString(@"OK", @"JavaScript alert confirmation"), NSLocalizedString(@"Cancel", @"JavaScript alert cancel"), nil];
+	[alert beginSheetModalForWindow:[webView window] completionHandler:^(NSModalResponse returnCode) {
+		completionHandler(returnCode == NSAlertFirstButtonReturn);
+	}];
+}
+
+- (void)webView:(WKWebView*)webView runOpenPanelWithParameters:(WKOpenPanelParameters*)parameters initiatedByFrame:(WKFrameInfo*)frame completionHandler:(void (^)(NSArray<NSURL *> * _Nullable))completionHandler
+{
+	NSOpenPanel* panel = [NSOpenPanel openPanel];
+	panel.allowsMultipleSelection = parameters.allowsMultipleSelection;
+	[panel setDirectoryURL:[NSURL fileURLWithPath:NSHomeDirectory()]];
+	if([panel runModal] == NSModalResponseOK)
+		completionHandler(panel.URLs);
+	else
+		completionHandler(nil);
+}
+
+- (WKWebViewConfiguration *)webView:(WKWebView *)webView createWebViewConfigurationForNavigationAction:(WKNavigationAction *)navigationAction
+{
+	WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
+	config.preferences.javaScriptCanOpenWindowsAutomatically = NO;
+	return config;
+}
+
+- (void)webViewDidClose:(WKWebView *)webView
+{
+	if(![webView tryToPerform:@selector(toggleHTMLOutput:) with:self])
+		[webView tryToPerform:@selector(performClose:) with:self];
+	self.needsNewWebView = YES;
+}
+
+- (void)webView:(WKWebView*)webView didReceiveServerRedirectForProvisionalNavigation:(WKNavigation*)navigation
+{
 }
 @end
 

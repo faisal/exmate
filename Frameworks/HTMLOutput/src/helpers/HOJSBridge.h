@@ -12,3 +12,7 @@
 - (id)system:(NSString*)aCommand handler:(id)aHandler;
 - (void)log:(NSString*)aMessage;
 @end
+
+@interface HOJSBridge (WKWebView) <WKScriptMessageHandler>
++ (NSString*)javaScriptBridge;
+@end

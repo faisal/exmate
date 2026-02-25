@@ -1,5 +1,6 @@
 #import "HOJSBridge.h"
 #import "add_to_buffer.h"
+#import <WebKit/WebKit.h>
 #import <OakAppKit/NSAlert Additions.h>
 #import <OakFoundation/NSString Additions.h>
 #import <oak/debug.h>
@@ -15,7 +16,7 @@
 @end
 
 /*
-	This class exposes a ‘TextMate’ object to the JavaScript interpreter.
+	This class exposes a 'TextMate' object to the JavaScript interpreter.
 	The object will have the following methods available:
 
 		system()                 See HOJSShellCommand class below for information.
@@ -107,7 +108,7 @@
 
 - (id)system:(NSString*)aCommand handler:(id)aHandler
 {
-	return [[HOJSShellCommand alloc] initShellCommand:aCommand withEnvironment:[self environment] andExitHandler:[aHandler isKindOfClass:[WebUndefined class]] ? nil : aHandler];
+	return [[HOJSShellCommand alloc] initShellCommand:aCommand withEnvironment:[self environment] andExitHandler:[aHandler isKindOfClass:[NSNull class]] ? nil : aHandler];
 }
 @end
 
@@ -331,5 +332,60 @@
 - (void)finalizeForWebScript
 {
 	[self cancelCommand];
+}
+@end
+
+@implementation HOJSBridge (WKWebView)
+
++ (NSString*)javaScriptBridge
+{
+	return @"\
+		var TextMate = {\
+			nextCallbackId: 1,\
+			callbacks: new Map(),\
+			log: function(str) {\
+				webkit.messageHandlers.textmate.postMessage({ command: 'log', payload: { message: str } });\
+			},\
+			system: function(cmd, handler) {\
+				var options = {};\
+				if(handler !== undefined && handler !== null) {\
+					this.callbacks.set(this.nextCallbackId, handler);\
+					options.callbackId = this.nextCallbackId;\
+					this.nextCallbackId += 1;\
+				}\
+				webkit.messageHandlers.textmate.postMessage({ command: 'system', payload: { command: cmd, callbackId: options.callbackId } });\
+			},\
+			open: function(path, options) {\
+				webkit.messageHandlers.textmate.postMessage({ command: 'open', payload: { path: path, options: options } });\
+			}\
+		};\
+		window.TextMate = TextMate;\
+	";
+}
+
+- (void)userContentController:(WKUserContentController*)userContentController didReceiveScriptMessage:(WKScriptMessage*)message
+{
+	if(![message.name isEqualToString:@"textmate"])
+		return;
+
+	NSDictionary* body = message.body;
+	NSString* command = body[@"command"];
+
+	if([command isEqualToString:@"log"])
+	{
+		NSDictionary* payload = body[@"payload"];
+		[self log:payload[@"message"]];
+	}
+	else if([command isEqualToString:@"system"])
+	{
+		NSDictionary* payload = body[@"payload"];
+		NSString* cmd = payload[@"command"];
+		[self system:cmd handler:nil];
+	}
+	else if([command isEqualToString:@"open"])
+	{
+		NSDictionary* payload = body[@"payload"];
+		[self openFile:payload[@"path"] withOptions:payload[@"options"]];
+	}
 }
 @end

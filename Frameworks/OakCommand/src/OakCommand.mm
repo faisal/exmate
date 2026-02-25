@@ -1,4 +1,5 @@
 #import "OakCommand.h"
+#import <WebKit/WebKit.h>
 #import <document/OakDocument.h>
 #import <document/OakDocumentController.h>
 #import <oak/datatypes.h>
@@ -122,7 +123,7 @@ static std::tuple<pid_t, int, int> my_fork (char const* cmd, int inputRead, std:
 
 	if(rc != 0)
 	{
-		perrorf("posix_spawn: %{public}s", cmd);
+		fprintf(stderr, "posix_spawn: %s\n", cmd);
 		close(outputRead);
 		close(errorRead);
 		return { -1, -1, -1 };
@@ -699,7 +700,10 @@ static pid_t run_command (dispatch_group_t rootGroup, std::string const& cmd, in
 + (void)load
 {
 	[self registerClass:self];
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 	[WebView registerURLSchemeAsLocal:kOakFileHandleURLScheme];
+	#pragma clang diagnostic pop
 }
 
 + (BOOL)canInitWithRequest:(NSURLRequest*)request                            { return [request.URL.scheme isEqualToString:kOakFileHandleURLScheme]; }

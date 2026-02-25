@@ -96,7 +96,7 @@ static std::tuple<pid_t, int, int> my_fork (char const* cmd, int inputRead, std:
 
 	if(rc != 0)
 	{
-		perrorf("posix_spawn: %{public}s", cmd);
+		fprintf(stderr, "posix_spawn: %s\n", cmd);
 		close(outputRead);
 		close(errorRead);
 		return { -1, -1, -1 };

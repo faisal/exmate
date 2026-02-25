@@ -68,12 +68,19 @@ static void launch_app (bool disableUntitled)
 {
 	disable_sudo_helper_t helper;
 
-	NSError* error;
-	if(![NSWorkspace.sharedWorkspace launchApplicationAtURL:find_app() options:NSWorkspaceLaunchWithoutActivation|NSWorkspaceLaunchWithoutAddingToRecents configuration:(disableUntitled ? @{ NSWorkspaceLaunchConfigurationArguments: @[ @"-disableNewDocumentAtStartup", @"1" ] } : nil) error:&error])
-	{
-		fprintf(stderr, "Can’t launch TextMate.app: %s\n", error.localizedDescription.UTF8String);
-		exit(EX_UNAVAILABLE);
-	}
+	NSWorkspaceOpenConfiguration* config = [[NSWorkspaceOpenConfiguration alloc] init];
+	[config setActivates:NO];
+	[config setAddsToRecentItems:NO];
+	if(disableUntitled)
+		[config setArguments:@[ @"-disableNewDocumentAtStartup", @"1" ]];
+
+	[NSWorkspace.sharedWorkspace openApplicationAtURL:find_app() configuration:config completionHandler:^(NSRunningApplication* app, NSError* error) {
+		if(error)
+		{
+			fprintf(stderr, "Can't launch TextMate.app: %s\n", error.localizedDescription.UTF8String);
+			exit(EX_UNAVAILABLE);
+		}
+	}];
 }
 
 static void install_auth_tool ()

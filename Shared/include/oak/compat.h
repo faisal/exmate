@@ -16,8 +16,11 @@ namespace oak
 
 	inline OSStatus execute_with_privileges (AuthorizationRef authorization, std::string const& pathToTool, AuthorizationFlags options, char* const* arguments, FILE** communicationsPipe)
 	{
-#warning "AuthorizationExecuteWithPrivileges is deprecated. Consider migrating to XPC service."
+		// TODO: No modern drop-in replacement exists without SMJobBless/XPC. Migration requires significant redesign.
+		#pragma clang diagnostic push
+		#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 		return AuthorizationExecuteWithPrivileges(authorization, pathToTool.c_str(), options, arguments, communicationsPipe);
+		#pragma clang diagnostic pop
 	}
 } /* oak */
 

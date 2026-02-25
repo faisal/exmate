@@ -482,3 +482,10 @@ PR 4 may modify PATH/environment handling in `Frameworks/command/src/runner.mm` 
 | 13 | Low | Testing and documentation |
 | 14 | Low | Script creation; xcodegen is well-understood |
 | 15 | Low | Documentation updates |
+
+---
+
+## Still To Do:
+
+- Migrate off AuthorizationExecuteWithPrivileges
+- Switch to GitHub tracking of plugins.

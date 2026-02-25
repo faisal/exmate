@@ -16,6 +16,7 @@
 #import <OakAppKit/OakSound.h>
 #import <OakFoundation/NSString Additions.h>
 #import <OakFoundation/OakFoundation.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <OakFoundation/OakFindProtocol.h>
 #import <OakSystem/application.h>
 #import <crash/info.h>
@@ -3663,8 +3664,8 @@ static char const* kOakMenuItemTitle = "OakMenuItemTitle";
 
 + (NSArray*)dropTypes
 {
-	return @[ NSColorPboardType, NSFilenamesPboardType,
-		@"WebURLsWithTitlesPboardType", (NSString*)kUTTypeURL, @"public.url-name", NSURLPboardType,
+	return @[ NSPasteboardTypeColor, NSPasteboardTypeFileURL,
+				@"WebURLsWithTitlesPboardType", UTTypeURL.identifier, @"public.url-name", NSPasteboardTypeURL,
 		NSPasteboardTypeString ];
 }
 
@@ -3797,7 +3798,7 @@ static char const* kOakMenuItemTitle = "OakMenuItemTitle";
 		BOOL hoveringSelection = [self isPointInSelection:[self convertPoint:[info draggingLocation] fromView:nil]];
 		res = hoveringSelection ? NSDragOperationNone : ((mask & NSDragOperationMove) ?: (mask & NSDragOperationCopy));
 	}
-	else if([[info draggingPasteboard] availableTypeFromArray:@[ NSFilenamesPboardType ]])
+	else if([[info draggingPasteboard] availableTypeFromArray:@[ NSPasteboardTypeFileURL ]])
 	{
 		res = (mask & NSDragOperationCopy) ?: (mask & NSDragOperationLink);
 	}
@@ -3844,7 +3845,7 @@ static char const* kOakMenuItemTitle = "OakMenuItemTitle";
 	ng::index_t pos = dropPosition;
 	documentView->set_drop_marker(dropPosition = ng::index_t());
 
-	NSArray* files = [pboard availableTypeFromArray:@[ NSFilenamesPboardType ]] ? [pboard propertyListForType:NSFilenamesPboardType] : nil;
+	NSArray* files = [pboard availableTypeFromArray:@[ NSPasteboardTypeFileURL ]] ? [pboard propertyListForType:NSPasteboardTypeFileURL] : nil;
 	if(shouldLink && files)
 	{
 		std::vector<std::string> paths;

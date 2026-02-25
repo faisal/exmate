@@ -133,7 +133,7 @@ static NSMutableIndexSet* MutableLongestCommonSubsequence (NSArray* lhs, NSArray
 
 + (void)initialize
 {
-	[NSApplication.sharedApplication registerServicesMenuSendTypes:@[ NSFilenamesPboardType, NSURLPboardType ] returnTypes:@[ ]];
+	[NSApplication.sharedApplication registerServicesMenuSendTypes:@[ NSPasteboardTypeFileURL, NSPasteboardTypeURL ] returnTypes:@[ ]];
 
 	[NSUserDefaults.standardUserDefaults registerDefaults:@{
 		kUserDefaultsFoldersOnTopKey: [[[NSUserDefaults alloc] initWithSuiteName:@"com.apple.finder"] objectForKey:@"_FXSortFoldersFirst"] ?: @NO,
@@ -2219,7 +2219,7 @@ static NSMutableIndexSet* MutableLongestCommonSubsequence (NSArray* lhs, NSArray
 
 - (id)validRequestorForSendType:(NSString*)sendType returnType:(NSString*)returnType
 {
-	return returnType == nil && sendType != nil && [@[ NSFilenamesPboardType, NSURLPboardType ] containsObject:sendType] ? self : nil;
+	return returnType == nil && sendType != nil && [@[ NSPasteboardTypeFileURL, NSPasteboardTypeURL ] containsObject:sendType] ? self : nil;
 }
 
 - (BOOL)writeSelectionToPasteboard:(NSPasteboard*)pboard types:(NSArray*)types
@@ -2243,7 +2243,7 @@ static NSMutableIndexSet* MutableLongestCommonSubsequence (NSArray* lhs, NSArray
 		return NSDragOperationNone;
 
 	NSPasteboard* pboard  = info.draggingPasteboard;
-	NSArray* draggedPaths = [pboard propertyListForType:NSFilenamesPboardType];
+	NSArray* draggedPaths = [pboard propertyListForType:NSPasteboardTypeFileURL];
 
 	dev_t targetDevice   = path::device(dropURL.fileSystemRepresentation);
 	BOOL linkOperation   = (NSApp.currentEvent.modifierFlags & NSEventModifierFlagControl) == NSEventModifierFlagControl;

@@ -79,7 +79,7 @@ static NSString* const OakTabItemPasteboardType = @"com.macromates.TextMate.tabI
 
 - (NSArray*)writableTypesForPasteboard:(NSPasteboard*)aPasteboard
 {
-	return OakIsEmptyString(_path) ? @[ OakTabItemPasteboardType ] : @[ OakTabItemPasteboardType, (NSString*)kUTTypeFileURL ];
+	return OakIsEmptyString(_path) ? @[ OakTabItemPasteboardType ] : @[ OakTabItemPasteboardType, UTTypeFileURL.identifier ];
 }
 
 - (NSPasteboardWritingOptions)writingOptionsForType:(NSString*)aType pasteboard:(NSPasteboard*)aPasteboard
@@ -89,7 +89,7 @@ static NSString* const OakTabItemPasteboardType = @"com.macromates.TextMate.tabI
 
 - (id)pasteboardPropertyListForType:(NSString*)aType
 {
-	if([aType isEqualToString:(NSString*)kUTTypeFileURL])
+	if([aType isEqualToString:UTTypeFileURL.identifier])
 		return [NSURL fileURLWithPath:_path].absoluteString;
 
 	NSMutableDictionary* dict = [NSMutableDictionary dictionary];

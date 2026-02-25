@@ -94,7 +94,7 @@
 	{
 		NSMutableArray* urls = [NSMutableArray array];
 		NSPasteboard* pboard = session.draggingPasteboard;
-		for(NSString* path in [pboard availableTypeFromArray:@[ NSFilenamesPboardType ]] ? [pboard propertyListForType:NSFilenamesPboardType] : @[ ])
+		for(NSString* path in [pboard availableTypeFromArray:@[ NSPasteboardTypeFileURL ]] ? [pboard propertyListForType:NSPasteboardTypeFileURL] : @[ ])
 			[urls addObject:[NSURL fileURLWithPath:path]];
 		[(id <FileBrowserOutlineViewDelegate>)self.delegate outlineView:self didTrashURLs:urls];
 	}

@@ -278,8 +278,7 @@ static void* kOakTabViewSelectedContext  = &kOakTabViewSelectedContext;
 
 		self.overflowButton.hidden = YES;
 
-		if(@available(macos 10.13, *))
-			[NSWorkspace.sharedWorkspace addObserver:self forKeyPath:@"voiceOverEnabled" options:NSKeyValueObservingOptionInitial context:kOakTabViewVoiceOverContext];
+		[NSWorkspace.sharedWorkspace addObserver:self forKeyPath:@"voiceOverEnabled" options:NSKeyValueObservingOptionInitial context:kOakTabViewVoiceOverContext];
 
 		NSDictionary* views = @{
 			@"background": _backgroundView,
@@ -321,8 +320,7 @@ static void* kOakTabViewSelectedContext  = &kOakTabViewSelectedContext;
 - (void)dealloc
 {
 	self.tabItem = nil;
-	if(@available(macos 10.13, *))
-		[NSWorkspace.sharedWorkspace removeObserver:self forKeyPath:@"voiceOverEnabled" context:kOakTabViewVoiceOverContext];
+	[NSWorkspace.sharedWorkspace removeObserver:self forKeyPath:@"voiceOverEnabled" context:kOakTabViewVoiceOverContext];
 }
 
 - (void)setHidden:(BOOL)flag
@@ -479,8 +477,7 @@ static void* kOakTabViewSelectedContext  = &kOakTabViewSelectedContext;
 {
 	if(context == kOakTabViewVoiceOverContext)
 	{
-		if(@available(macos 10.13, *))
-			self.voiceOverEnabled = NSWorkspace.sharedWorkspace.isVoiceOverEnabled;
+		self.voiceOverEnabled = NSWorkspace.sharedWorkspace.isVoiceOverEnabled;
 	}
 	else if(context == kOakTabViewTitleContext)
 		self.textField.stringValue = self.tabItem.title;

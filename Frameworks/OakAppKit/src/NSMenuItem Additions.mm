@@ -70,7 +70,7 @@ static char const* kOakMenuItemTabTrigger    = "OakMenuItemTabTrigger";
 	if([NSFileManager.defaultManager fileExistsAtPath:path])
 		icon = [NSWorkspace.sharedWorkspace iconForFile:path];
 	else if(OakNotEmptyString([path pathExtension]))
-		icon = [NSWorkspace.sharedWorkspace iconForFileType:[path pathExtension]];
+		icon = [NSWorkspace.sharedWorkspace iconForContentType:[UTType typeWithFilenameExtension:[path pathExtension]]];
 	else
 		icon = [NSWorkspace.sharedWorkspace iconForContentType:UTTypeItem];
 

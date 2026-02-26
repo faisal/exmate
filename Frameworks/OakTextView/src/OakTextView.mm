@@ -151,7 +151,7 @@ NSString* const kUserDefaultsScrollPastEndKey      = @"scrollPastEnd";
 	} else if([attribute isEqualToString:NSAccessibilityURLAttribute]) {
 		value = self.URL;
 	} else {
-		@throw [NSException exceptionWithName:NSAccessibilityException reason:[NSString stringWithFormat:@"Getting accessibility attribute not supported: %@", attribute] userInfo:nil];
+		@throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[NSString stringWithFormat:@"Getting accessibility attribute not supported: %@", attribute] userInfo:nil];
 	}
 
 	return value;
@@ -167,7 +167,7 @@ NSString* const kUserDefaultsScrollPastEndKey      = @"scrollPastEnd";
 - (void)accessibilitySetValue:(id)value forAttribute:(NSString*)attribute
 {
 	if([[self myAccessibilityAttributeNames] containsObject:attribute])
-		@throw [NSException exceptionWithName:NSAccessibilityException reason:[NSString stringWithFormat:@"Setting accessibility attribute not supported: %@", attribute] userInfo:nil];
+		@throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[NSString stringWithFormat:@"Setting accessibility attribute not supported: %@", attribute] userInfo:nil];
 	[super accessibilitySetValue:value forAttribute:attribute];
 }
 
@@ -178,7 +178,7 @@ NSString* const kUserDefaultsScrollPastEndKey      = @"scrollPastEnd";
 
 - (id)accessibilityAttributeValue:(NSString*)attribute forParameter:(id)parameter
 {
-	@throw [NSException exceptionWithName:NSAccessibilityException reason:[NSString stringWithFormat:@"Accessibility parameterized attribute not supported: %@", attribute] userInfo:nil];
+	@throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[NSString stringWithFormat:@"Accessibility parameterized attribute not supported: %@", attribute] userInfo:nil];
 }
 
 - (NSArray*)accessibilityActionNames
@@ -206,7 +206,7 @@ NSString* const kUserDefaultsScrollPastEndKey      = @"scrollPastEnd";
 	}
 	else
 	{
-		@throw [NSException exceptionWithName:NSAccessibilityException reason:[NSString stringWithFormat:@"Accessibility action not supported: %@", action] userInfo:nil];
+		@throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[NSString stringWithFormat:@"Accessibility action not supported: %@", action] userInfo:nil];
 	}
 }
 

@@ -27,7 +27,7 @@
 
 @class OakCommand;
 
-@interface BundleEditor () <NSWindowDelegate, OakTextViewDelegate>
+@interface BundleEditor () <NSEditor, NSWindowDelegate, OakTextViewDelegate>
 {
 	NSViewController*      _browserViewController;
 	NSViewController*      _documentViewController;

@@ -147,8 +147,8 @@ Replace `SecKeychainItemCopyAttributesAndData`/`SecKeychainItemFreeAttributesAnd
 Add pragma suppression + TODO comment in: `Dialog.mm`, `Dialog2.mm`, `tm_dialog.mm`, `tm_dialog2.mm`, `CommitWindow.mm`, `commit.mm`
 
 **Submodule workflow:**
-- `dialog`: Push changes to `faisal/exmate-dialog.git` on branch `sdk_update_three`. Update `.gitmodules` to point there.
-- `dialog-1.x`: Push changes to existing `faisal/dialog-1.x.git` fork (reuse as-is, don't rename).
+- `dialog`: Push changes to `faisal/exmate-dialog.git` on branch `artisanal`. Update `.gitmodules` to point there.
+- `dialog-1.x`: Push changes to `faisal/exmate-dialog-1.x.git` on branch `artisanal`. Use `.gitmodules` to point there.
 
 ### 11o: QuickLook + miscellaneous + vendor suppressions (~18 warnings)
 

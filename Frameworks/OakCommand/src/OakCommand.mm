@@ -700,10 +700,6 @@ static pid_t run_command (dispatch_group_t rootGroup, std::string const& cmd, in
 + (void)load
 {
 	[self registerClass:self];
-	#pragma clang diagnostic push
-	#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-	[WebView registerURLSchemeAsLocal:kOakFileHandleURLScheme];
-	#pragma clang diagnostic pop
 }
 
 + (BOOL)canInitWithRequest:(NSURLRequest*)request                            { return [request.URL.scheme isEqualToString:kOakFileHandleURLScheme]; }

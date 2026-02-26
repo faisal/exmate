@@ -21,7 +21,7 @@ static NSString* GetHardwareInfo (int field, BOOL isInteger = NO)
 	return @"???";
 }
 
-@interface CrashReporter () <UNUserNotificationCenterDelegate, NSUserNotificationCenterDelegate>
+@interface CrashReporter () <UNUserNotificationCenterDelegate>
 @end
 
 @implementation CrashReporter
@@ -40,37 +40,21 @@ static NSString* GetHardwareInfo (int field, BOOL isInteger = NO)
 	return self;
 }
 
-- (void)userNotificationCenter:(UNUserNotificationCenter*)center didReceiveNotificationResponse:(UNNotificationResponse*)response withCompletionHandler:(void(^)(void))completionHandler API_AVAILABLE(macosx(10.14))
+- (void)userNotificationCenter:(UNUserNotificationCenter*)center didReceiveNotificationResponse:(UNNotificationResponse*)response withCompletionHandler:(void(^)(void))completionHandler
 {
 	if(NSString* urlString = response.notification.request.content.userInfo[@"url"])
 		[NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:urlString]];
 	completionHandler();
 }
 
-- (void)userNotificationCenter:(UNUserNotificationCenter*)center willPresentNotification:(UNNotification*)notification withCompletionHandler:(void(^)(UNNotificationPresentationOptions options))completionHandler API_AVAILABLE(macosx(10.14))
+- (void)userNotificationCenter:(UNUserNotificationCenter*)center willPresentNotification:(UNNotification*)notification withCompletionHandler:(void(^)(UNNotificationPresentationOptions options))completionHandler
 {
-	completionHandler(UNNotificationPresentationOptionAlert);
-}
-
-- (BOOL)userNotificationCenter:(NSUserNotificationCenter*)center shouldPresentNotification:(NSUserNotification*)notification
-{
-	return YES;
-}
-
-- (void)userNotificationCenter:(NSUserNotificationCenter*)center didActivateNotification:(NSUserNotification*)notification
-{
-	NSDictionary* userInfo = notification.userInfo;
-	if(NSString* urlString = userInfo[@"url"])
-		[NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:urlString]];
+	completionHandler(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionList);
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification*)aNotification
 {
-	if(NSDictionary* userInfo = [aNotification userInfo])
-	{
-		if(NSUserNotification* notification = userInfo[NSApplicationLaunchUserNotificationKey])
-			[self userNotificationCenter:NSUserNotificationCenter.defaultUserNotificationCenter didActivateNotification:notification];
-	}
+	// Launch-via-notification handled by UNUserNotificationCenter delegate
 }
 
 - (void)postNewCrashReportsToURLString:(NSString*)urlString

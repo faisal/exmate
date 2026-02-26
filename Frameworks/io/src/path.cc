@@ -9,6 +9,12 @@
 #include <regexp/format_string.h>
 #include <cf/cf.h>
 
+#ifdef __cplusplus
+extern "C" void path_open_urls(CFArrayRef urls);
+#else
+void path_open_urls(CFArrayRef urls);
+#endif
+
 namespace path
 {
 	// ==============================
@@ -818,7 +824,7 @@ namespace path
 					if(CFMutableArrayRef urls = CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks))
 					{
 						CFArrayAppendValue(urls, url);
-						LSOpenURLsWithRole(urls, kLSRolesViewer, nullptr, nullptr, nullptr, 0);
+						path_open_urls(urls);
 						CFRelease(urls);
 					}
 					CFRelease(url);
@@ -863,7 +869,10 @@ namespace path
 			{
 				int fd = mkstemp(&str[0]);
 				if(fd != -1)
+				{
 					close(fd);
+					unlink(str.c_str());
+				}
 			}
 		}
 		return str;

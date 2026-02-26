@@ -1,6 +1,7 @@
 #include "events.h"
 #include "path.h"
 #include <cf/cf.h>
+#include <dispatch/dispatch.h>
 #include <oak/debug.h>
 
 namespace
@@ -121,10 +122,9 @@ namespace
 			ASSERT(*stream);
 			if(*stream)
 			{
-				FSEventStreamScheduleWithRunLoop(*stream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+				FSEventStreamSetDispatchQueue(*stream, dispatch_get_main_queue());
 				stream->set_replaying_history(eventId != kFSEventStreamEventIdSinceNow, path, eventId);
 				FSEventStreamStart(*stream);
-				FSEventStreamFlushSync(*stream);
 			}
 		}
 

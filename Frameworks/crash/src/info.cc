@@ -3,7 +3,6 @@
 
 /* CrashReporter info */
 char const* __crashreporter_info__ = nullptr;
-asm(".desc ___crashreporter_info__, 0x10");
 
 namespace
 {

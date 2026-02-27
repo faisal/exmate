@@ -3,4 +3,5 @@ target "${dirname}" {
 	sources    vendor/kvdb/*.m
 	frameworks Cocoa
 	libraries  sqlite3
+	add FLAGS  "-Wno-deprecated-declarations"
 }

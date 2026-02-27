@@ -1,7 +1,7 @@
 target "kj" {
 	headers    vendor/c++/src/kj/*.h
 	sources    vendor/c++/src/kj/arena.c++ vendor/c++/src/kj/array.c++ vendor/c++/src/kj/async-io-unix.c++ vendor/c++/src/kj/async-io-win32.c++ vendor/c++/src/kj/async-io.c++ vendor/c++/src/kj/async-unix.c++ vendor/c++/src/kj/async-win32.c++ vendor/c++/src/kj/async.c++ vendor/c++/src/kj/cidr.c++ vendor/c++/src/kj/common.c++ vendor/c++/src/kj/debug.c++ vendor/c++/src/kj/encoding.c++ vendor/c++/src/kj/exception.c++ vendor/c++/src/kj/filesystem-disk-unix.c++ vendor/c++/src/kj/filesystem-disk-win32.c++ vendor/c++/src/kj/filesystem.c++ vendor/c++/src/kj/hash.c++ vendor/c++/src/kj/io.c++ vendor/c++/src/kj/list.c++ vendor/c++/src/kj/main.c++ vendor/c++/src/kj/memory.c++ vendor/c++/src/kj/mutex.c++ vendor/c++/src/kj/refcount.c++ vendor/c++/src/kj/source-location.c++ vendor/c++/src/kj/string-tree.c++ vendor/c++/src/kj/string.c++ vendor/c++/src/kj/table.c++ vendor/c++/src/kj/thread.c++ vendor/c++/src/kj/time.c++ vendor/c++/src/kj/timer.c++ vendor/c++/src/kj/units.c++
-	add CXX_FLAGS "-U FAR"
+	add CXX_FLAGS "-U FAR -Wno-deprecated-this-capture"
 }
 
 target "capnp" {

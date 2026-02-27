@@ -16,6 +16,10 @@
 #import <theme/theme.h>
 #import <OakFoundation/NSString Additions.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+// TODO: Migrate from QLGenerator to QLPreviewingController extension architecture (major rewrite)
+
 OAK_EXTERN_C_BEGIN
 
 static void initialize (CFBundleRef generatorBundle)
@@ -164,7 +168,7 @@ OSStatus TextMateQuickLookPlugIn_GenerateThumbnailForURL (void* instance, QLThum
 	CGContextRef bitmapContext = QLThumbnailRequestCreateContext(request, maxSize, true, NULL);
 	if(bitmapContext)
 	{
-		NSGraphicsContext* context = [NSGraphicsContext graphicsContextWithGraphicsPort:bitmapContext flipped:YES];
+		NSGraphicsContext* context = [NSGraphicsContext graphicsContextWithCGContext:bitmapContext flipped:YES];
 		if(context)
 		{
 			[NSGraphicsContext saveGraphicsState];
@@ -211,7 +215,7 @@ OSStatus TextMateQuickLookPlugIn_GeneratePreviewForURL (void* instance, QLPrevie
 	NSString* appearance = [userDefaults stringForKey:@"themeAppearance"];
 	BOOL darkMode = [appearance isEqualToString:@"dark"];
 	if(!darkMode && ![appearance isEqualToString:@"light"]) // If it is not ‘light’ then assume ‘auto’
-		darkMode = [[NSAppearance.currentAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]] isEqualToString:NSAppearanceNameDarkAqua];
+		darkMode = [[NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]] isEqualToString:NSAppearanceNameDarkAqua];
 	NSString* themeUUID = [userDefaults stringForKey:darkMode ? @"darkModeThemeUUID" : @"universalThemeUUID"];
 
 	settings_t const settings = settings_for_path(URLtoString(url), fileType);
@@ -243,3 +247,5 @@ void TextMateQuickLookPlugIn_CancelPreviewGeneration (void* instance, QLPreviewR
 }
 
 OAK_EXTERN_C_END
+
+#pragma clang diagnostic pop

@@ -133,11 +133,13 @@ static NSURL* CanonicalURL (NSURL* url, BOOL isDirectoryFlag = YES)
 
 	NSAppleEventDescriptor* odocEvent = [NSAppleEventDescriptor appleEventWithEventClass:kCoreEventClass eventID:kAEOpenDocuments targetDescriptor:nil returnID:kAutoGenerateReturnID transactionID:kAnyTransactionID];
 	[odocEvent setParamDescriptor:listDesc forKeyword:keyDirectObject];
-	NSDictionary* launchOptions = @{ NSWorkspaceLaunchConfigurationAppleEvent: odocEvent };
+	NSWorkspaceOpenConfiguration* config = [NSWorkspaceOpenConfiguration configuration];
+	config.appleEvent = odocEvent;
 
-	NSError* err = nil;
-	if(![NSWorkspace.sharedWorkspace launchApplicationAtURL:applicationURL options:NSWorkspaceLaunchDefault configuration:launchOptions error:&err])
-		NSLog(@"%@: %@", applicationURL, err.localizedDescription);
+	[NSWorkspace.sharedWorkspace openApplicationAtURL:applicationURL configuration:config completionHandler:^(NSRunningApplication* app, NSError* error){
+		if(error)
+			NSLog(@"%@: %@", applicationURL, error.localizedDescription);
+	}];
 }
 
 // ==========================

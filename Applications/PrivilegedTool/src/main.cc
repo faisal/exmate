@@ -60,6 +60,7 @@ static int setup_socket ()
 	assert(rc != -1);
 	rc = listen(fd, SOMAXCONN);
 	assert(rc != -1);
+	(void)rc;
 
 	return fd;
 }

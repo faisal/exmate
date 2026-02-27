@@ -2,167 +2,141 @@
 
 ## Context
 
-PRs 1-10 and parts of PR 11 (sub-commits 11a-11f) are committed. The build succeeds but produces **~91 warnings** (86 deprecation + 5 code quality). Additionally, earlier PRs left some items incomplete (31 `@available` guards, indentation defects in header files, dead WebView code). The mkstemp→unlink fix in `path.cc` is applied but uncommitted.
+PRs 1-10 and PR 11 (sub-commits 11a-11o) are committed. Parts 1 and 2 are **complete** — the build succeeds with **zero warnings** (all remaining deprecations are either migrated or suppressed with documented TODOs). The mkstemp fix, indentation fixes, @available guard removal, HOJSBridge cleanup, dead WebView removal, and all deprecation warning fixes are committed.
 
-This plan covers: (1) fixes to existing work, (2) completing PR 11, (3) PRs 12-15.
-
----
-
-## Part 1: Fixes to Existing Work (Blockers First)
-
-### 1a. Fix FSEventStream deadlock causing launch hang (PR 11f regression)
-
-PR 11f replaced `FSEventStreamScheduleWithRunLoop` with `FSEventStreamSetDispatchQueue(stream, dispatch_get_main_queue())`. But two call sites still call `FSEventStreamFlushSync()` from the main thread immediately after. This is a **classic GCD deadlock**: FlushSync blocks the main thread waiting for callbacks, but callbacks are queued on `dispatch_get_main_queue()` which can't run because the main thread is blocked.
-
-**Affected files:**
-- `Frameworks/io/src/events.cc:125-128` — `FSEventStreamSetDispatchQueue` + `FSEventStreamFlushSync`
-- `Frameworks/scm/src/fs_events.cc:25-27` — same pattern
-
-**Fix:** Remove the `FSEventStreamFlushSync()` calls in both files. The flush was useful with RunLoop scheduling (FlushSync pumps the run loop inline), but with GCD dispatch to the main queue it deadlocks. Events will still be delivered asynchronously after `FSEventStreamStart()`.
-
-`Frameworks/FileBrowser/src/FSEventsManager.mm:44` uses `FSEventStreamSetDispatchQueue` but does NOT call FlushSync, so it's fine.
-
-### 1b. Commit the mkstemp fix in path.cc
-Already applied — `unlink(str.c_str())` after `mkstemp`+`close` in `Frameworks/io/src/path.cc:864-868`. Commit this.
-
-### 1c. Fix broken indentation from PR 11b (iterator modernization)
-
-**`Frameworks/text/src/tokenize.h`** — The `tokenize_helper_t` struct body is over-indented (2 tabs inside namespace, should be 1). The `using` declarations inside `iterator` are at 4 tabs while the remaining members (constructor, operators, private) are at 3 tabs. All members inside `iterator` should be at a consistent indent level.
-
-**`Frameworks/text/src/utf8.h`** — In the `diacritics` namespace (~line 247), `iterator_t` template+struct are at 2 tabs (should be 1), and the `using` declarations are at the same level as the struct's opening brace (should be one level deeper).
-
-These are whitespace-only fixes. No logic changes.
-
-### 1d. Fix HOJSBridge duplicate category + incompatible pointer type (from PR 10)
-
-**`Frameworks/HTMLOutput/src/helpers/HOJSBridge.h:16`** — Change to:
-```objc
-@interface HOJSBridge (WKWebView) <WKScriptMessageHandler>
-```
-
-**`Frameworks/HTMLOutput/src/helpers/HOJSBridge.mm:33`** — Remove the duplicate `@interface HOJSBridge (WKWebView) <WKScriptMessageHandler>` declaration.
-
-This fixes both the `-Wobjc-duplicate-category-definition` warning and the `-Wincompatible-pointer-types` warning in `HOBrowserView.mm:35` (because the header will now properly declare the protocol conformance).
-
-### 1e. Remove dead WebView code left from PR 10
-
-**`Frameworks/HTMLOutput/src/helpers/HOJSBridge.mm:115`** — Replace `[WebUndefined class]` check with `[NSNull class]` (in WKWebView, undefined JS values arrive as `NSNull`).
-
-**`Frameworks/OakCommand/src/OakCommand.mm:699-707`** — Delete the entire `+load` method that calls `[WebView registerURLSchemeAsLocal:]` with its pragma suppression. PR 10 migrated to `WKURLSchemeHandler`; this is dead code.
-
-### 1f. Remove 31 remaining `@available` guards (should have been done in PR 1)
-
-All guards check for macOS 10.13/10.14/10.15/11.0 — all below the 13.0 minimum. For each: take the true-branch, delete the `if(@available(...))` wrapper and the `else` branch.
-
-Files (31 guards across 22 files):
-- `Applications/QuickLookGenerator/src/generate.mm` (1)
-- `Applications/TextMate/src/OakMainMenu.mm` (1)
-- `Frameworks/OakTabBarView/src/OakTabBarView.mm` (3)
-- `Frameworks/BundleEditor/src/BundleEditor.mm` (1)
-- `Frameworks/Find/src/FFResultsViewController.mm` (1)
-- `Frameworks/MenuBuilder/src/MenuBuilder.mm` (1)
-- `Frameworks/FileBrowser/src/FileBrowserView.mm` (1)
-- `Frameworks/Preferences/src/Preferences.mm` (1)
-- `Frameworks/Preferences/src/SoftwareUpdatePreferences.mm` (1)
-- `Frameworks/Preferences/src/BundlesPreferences.mm` (1)
-- `Frameworks/SoftwareUpdate/src/OakDownloadManager.mm` (2)
-- `Frameworks/CrashReporter/src/CrashReporter.mm` (2)
-- `Frameworks/OakAppKit/src/OakTransitionViewController.mm` (1)
-- `Frameworks/OakAppKit/src/OakKeyEquivalentView.mm` (1)
-- `Frameworks/OakAppKit/src/OakToolTip.mm` (1)
-- `Frameworks/OakAppKit/src/OakUIConstructionFunctions.mm` (3)
-- `Frameworks/OakAppKit/src/NSMenuItem Additions.mm` (1)
-- `Frameworks/OakAppKit/src/OakPasteboardChooser.mm` (1)
-- `Frameworks/OakFilterList/src/OakChooser.mm` (1)
-- `Frameworks/OakTextView/src/OTVStatusBar.mm` (1)
-- `Frameworks/OakTextView/src/OakTextView.mm` (1)
-- `Frameworks/OakTextView/src/OakChoiceMenu.mm` (2)
-- `PlugIns/dialog/Commands/popup/TMDIncrementalPopUpMenu.mm` (2)
+Remaining work: PRs 12-15 (interface layout metrics, tests/CI, Xcode build integration, documentation).
 
 ---
 
-## Part 2: Complete PR 11 (Remaining Deprecation Warnings)
+## Remaining Warning Suppressions
 
-Group the ~86 remaining deprecation warnings into sub-commits by complexity.
+PRs 11g–11o are committed. The build is **zero warnings**. All remaining suppressions fall into three categories:
 
-### 11g: Trivial renames (11 warnings)
+### A. Suppressions Added by This Modernization (8 pragma blocks)
 
-Direct symbol renames with identical semantics:
-
-| Old | New | Files |
-|-----|-----|-------|
-| `NSBackgroundStyleDark` | `NSBackgroundStyleEmphasized` | OakPasteboardChooser.mm, FFResultsViewController.mm, OakChooser.mm, TableView.mm, BundleItemChooser.mm |
-| `alternateSelectedControlColor` | `selectedContentBackgroundColor` | TableView.mm |
-| `iconForFileType:` | `iconForContentType:` (with UTType) | NSMenuItem Additions.mm, BundleEditor.mm, BundlesPreferences.mm |
-| `openFile:` | `openURL:` | FileBrowserViewController.mm |
-| `NSAccessibilityException` | Remove or replace with NSRangeException | SearchField.mm |
-
-### 11h: NSUserNotification → UserNotifications (CrashReporter.mm)
-
-The file already has the UNUserNotificationCenter code behind `@available(10.14)` guards. After Part 1e removes those guards, delete the `NSUserNotification` fallback paths and the `NSUserNotificationCenterDelegate` conformance. Also replace `UNNotificationPresentationOptionAlert` → `UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionList`.
-
-**File:** `Frameworks/CrashReporter/src/CrashReporter.mm`
-
-### 11i: commitEditing NSEditor protocol (8 warnings)
-
-Add `<NSEditor>` protocol conformance to class interfaces that call `[self commitEditing]`:
-- `Frameworks/BundleEditor/src/BundleEditor.mm`
-- `Frameworks/Find/src/Find.mm`
-
-### 11j: NSWorkspace launchApplicationAtURL → openApplicationAtURL (3 warnings)
-
-Replace `launchApplicationAtURL:options:configuration:error:` with `NSWorkspaceOpenConfiguration` + `openApplicationAtURL:configuration:completionHandler:` in `Frameworks/OakAppKit/src/OakOpenWithMenu.mm`.
-
-### 11k: NSKeyedArchiver/Unarchiver in FileBrowserViewController (2 warnings)
-
-- `[[NSKeyedArchiver alloc] init]` → `[[NSKeyedArchiver alloc] initRequiringSecureCoding:NO]`
-- `initForReadingWithData:` → `initForReadingFromData:error:`
-
-**File:** `Frameworks/FileBrowser/src/FileBrowserViewController.mm`
-
-### 11l: SecTransform → SecKeyVerifySignature (10 warnings)
-
-Replace the 3-step `SecVerifyTransformCreate`/`SecTransformSetAttribute`/`SecTransformExecute` pattern with the single `SecKeyVerifySignature()` call (available since macOS 10.12).
-
-**Files:**
+#### 1. SecTransform — DSA Signature Verification (2 files)
 - `Frameworks/network/src/filter_check_signature.cc`
 - `Frameworks/SoftwareUpdate/src/OakDownloadManager.mm`
 
-### 11m: SecKeychain → SecItem (4 warnings)
+**What's suppressed:** `SecVerifyTransformCreate`, `SecTransformSetAttribute`, `SecTransformExecute` — the old cryptographic transform pipeline for signature verification.
 
-Replace `SecKeychainItemCopyAttributesAndData`/`SecKeychainItemFreeAttributesAndData` with `SecItemCopyMatching` using `kSecReturnAttributes` + `kSecReturnData`.
+**Why suppressed:** `SecKeyVerifySignature` (the modern replacement) does not support DSA keys. TextMate's update signing keys (`org.textmate.duff`, `org.textmate.msheets`) are DSA-1024/2048 keys, decoded from base64 DER — the `GByqGSM` prefix in `updater.cc` corresponds to OID `1.2.840.10040.4.1` (DSA).
 
-**Files:**
-- `Frameworks/network/src/proxy.cc`
-- `Frameworks/license/src/keychain.cc`
+**What migration requires:**
+1. Generate new ECDSA P-256 or RSA-PSS signing keys for TextMate updates
+2. Update the build pipeline that signs `.tbz` updates to use the new key
+3. Ship a transition release that trusts both old DSA and new ECDSA signatures (so existing users with old keys can verify the transition update)
+4. After the transition window, remove the DSA path and drop the pragma suppression
+5. Estimated effort: **medium** — the C++ verification code changes are ~20 lines, but key rotation and the distribution pipeline are the hard parts
 
-### 11n: Dialog submodule deprecation fixes (4 warnings migrated + 12 suppressed)
+#### 2. NSConnection — Distributed Objects IPC (6 locations, 5 files)
+- `Frameworks/CommitWindow/src/CommitWindow.mm` (3 pragma blocks)
+- `PlugIns/dialog/Dialog2.mm` (2 pragma blocks)
+- `PlugIns/dialog/tm_dialog2.mm` (1 pragma block)
+- `PlugIns/dialog-1.x/Dialog.mm` (2 pragma blocks)
+- `PlugIns/dialog-1.x/tm_dialog.mm` (1 pragma block)
 
-**Migrate (trivial swaps):**
-- `javaScriptEnabled = YES` → remove (default is YES in WKWebView) — `TMDHTMLTips.mm`
-- `setAllowedFileTypes:` → `allowedContentTypes` with UTType — `filepanel.mm`
-- `colorUsingColorSpaceName:` → `colorUsingColorSpace:[NSColorSpace sRGBColorSpace]` — `ValueTransformers.mm` (both dialog and dialog-1.x)
+**What's suppressed:** `NSConnection` and its DO (Distributed Objects) machinery — `rootProxyForConnectionWithRegisteredName:host:`, `setProtocolForProxy:`, `registerName:`, and the NSConnection property declarations.
 
-**Suppress with documented TODO (NSConnection — fundamental IPC architecture):**
-Add pragma suppression + TODO comment in: `Dialog.mm`, `Dialog2.mm`, `tm_dialog.mm`, `tm_dialog2.mm`, `CommitWindow.mm`, `commit.mm`
+**Why suppressed:** NSConnection is the foundational IPC mechanism for the dialog plugin and CommitWindow. The entire architecture — `@protocol OakCommitWindowClientProtocol`, proxy method dispatch, port registration — is built around Distributed Objects. There is no drop-in modern equivalent.
 
-**Submodule workflow:**
-- `dialog`: Push changes to `faisal/exmate-dialog.git` on branch `artisanal`. Update `.gitmodules` to point there.
-- `dialog-1.x`: Push changes to `faisal/exmate-dialog-1.x.git` on branch `artisanal`. Use `.gitmodules` to point there.
+**What migration requires:**
+- Replace NSConnection with **NSXPCConnection** (the modern XPC-based IPC system)
+- `NSXPCConnection` uses a different connection model: each end registers a listener/endpoint, not a port name
+- All protocol methods must be redesigned: DO allows passing arbitrary objects by reference; XPC requires explicit serialization (NSSecureCoding) for all types
+- For `CommitWindow`: the server (`OakCommitWindowServer`) and client (`OakCommitWindowClient`) protocols need `NSXPCInterface` wrappers; all callbacks require explicit reply blocks
+- For `dialog` plugins: `tm_dialog2` and `Dialog2` use a pipe + DO hybrid; the pipe part stays but the proxy registration changes entirely
+- Estimated effort: **large** — roughly a 2–3 day rewrite; semantically equivalent but structurally different in all 5 files
 
-### 11o: QuickLook + miscellaneous + vendor suppressions (~18 warnings)
+#### 3. QuickLook Generator API (1 file, file-level pragma)
+- `Applications/QuickLookGenerator/src/generate.mm`
 
-**QuickLook generator (9 warnings):** Suppress with pragma + TODO (migration requires rewrite to QLPreviewingController extension architecture). Fix the two non-QL warnings in same file:
-- `graphicsContextWithGraphicsPort:flipped:` → `graphicsContextWithCGContext:flipped:`
-- `currentAppearance` → `currentDrawingAppearance` or `NSApp.effectiveAppearance`
+**What's suppressed:** `QLThumbnailRequestGetGeneratorBundle`, `QLThumbnailRequestIsCancelled`, `QLThumbnailRequestCreateContext`, `QLThumbnailRequestFlushContext`, `QLPreviewRequestGetGeneratorBundle`, `QLPreviewRequestSetDataRepresentation`, `QLPreviewRequestIsCancelled` — the entire legacy QLGenerator plugin interface.
 
-**3 unused variable warnings:** Fix in `PrivilegedTool/main.cc`, `OakPasteboard.mm`, `Favorites.mm`.
+**Why suppressed:** The replacement architecture (`QLPreviewingController` / `QLThumbnailReply`) is a fundamentally different programming model — an app extension rather than a bundle-based plugin.
 
-**kvdb NSKeyedArchiver (3 warnings):** Add `-Wno-deprecated-declarations` to kvdb target compile flags (submodule — avoids forking for 3 warnings).
+**What migration requires:**
+- Create a new **QuickLook Preview Extension** target (`.appex`) using `QLPreviewingController`
+- Create a separate **Thumbnail Extension** target using `QLFileThumbnailRequest` and `QLThumbnailReply`
+- Both must be app extensions (sandboxed, no direct file system access without entitlements), so the bundle loading code and settings file paths need redesign
+- The existing rendering logic (syntax highlighting, RTF generation) can be reused
+- Drop `plugin.h` / `QLGenerator` bundle structure entirely; add both extensions to `TextMate.app`
+- Estimated effort: **large** — the rendering code (~150 lines) stays, but the scaffolding changes completely
 
-**capnp vendor warnings:** Add `-Wno-deprecated-this-capture` to kj target compile flags.
+### B. Pre-existing Suppressions (2 files, existed before this modernization)
 
-**Linker warning (`REFERENCED_DYNAMICALLY`):** Investigate `__crashreporter_info__` symbol, remove attribute if possible.
+#### 4. AuthorizationExecuteWithPrivileges (scope narrowed by us)
+- `Shared/include/oak/compat.h`
+
+**What's suppressed:** `AuthorizationExecuteWithPrivileges` — runs a helper tool with root privileges.
+
+**What migration requires:** Replace with `SMJobBless` (uses a registered launchd job) or a persistent XPC service. This is non-trivial because `SMJobBless` requires the helper to be a separate bundle with a specific Info.plist structure, code-signed, and registered with launchd. Estimated effort: **medium**.
+
+#### 5. FSRef / Resource Manager / Carbon APIs (pre-existing)
+- `Frameworks/io/src/resource.cc`
+
+**What's suppressed:** `FSPathMakeRefWithOptions`, `FSOpenResFile`, `Get1Resource`, `HLock`/`HUnlock`, `GetHandleSize`, `ReleaseResource`, `CloseResFile` — Carbon-era resource fork reading for `.textClipping` files.
+
+**What migration requires:** Replace with `[[NSFileWrapper alloc] initWithURL:options:error:]` or low-level `getxattr`/`copyfile` to read resource forks. The data format (type/creator codes, resource types `'TEXT'`/`'utxt'`) still needs to be parsed manually. Estimated effort: **small-medium** (the API is deprecated but the data format is well-known).
+
+### C. Vendor Build-Flag Suppressions (acceptable, third-party code)
+
+| File | Flag | Reason |
+|------|------|--------|
+| `vendor/kvdb/default.rave` | `-Wno-deprecated-declarations` | Third-party SQLite-backed KV store; not our code to fix |
+| `vendor/capnp/default.rave` | `-Wno-deprecated-this-capture` | Cap'n Proto serialization library; upstream fix pending |
+
+These are appropriate for external dependencies and do not represent technical debt in TextMate's own code.
+
+### Suppression Summary
+
+| # | Suppressed API | Files | Effort | Blocked by |
+|---|---------------|-------|--------|------------|
+| 1 | SecTransform (DSA) | 2 | Medium | Key rotation infrastructure |
+| 2 | NSConnection (DO) | 5 | Large | Full IPC rewrite |
+| 3 | QLGenerator API | 1 | Large | Extension architecture rewrite |
+| 4 | AuthorizationExecuteWithPrivileges | 1 | Medium | SMJobBless/XPC redesign |
+| 5 | FSRef / Carbon Resource Manager | 1 | Small-Medium | — |
+| 6 | Vendor (kvdb, capnp) | 2 | None | Upstream fixes |
+
+The pragmas are sound: each has a `// TODO:` comment explaining what would be required. None suppress active bugs — they suppress warnings about deprecated-but-still-functional APIs that would require architectural rewrites to replace.
+
+---
+
+## Future TODO: Replace kvdb with Couchbase Lite
+
+kvdb (upstream [colinyoung/kvdb](https://github.com/colinyoung/kvdb), abandoned ~2013) is used by `DocumentWindowController.mm` and `Favorites.mm` to persist project state in `RecentProjects.db`. The vendored copy at v0.0.8 has 3 deprecated `NSKeyedArchiver`/`NSKeyedUnarchiver` calls, currently suppressed with `-Wno-deprecated-declarations`.
+
+[Couchbase Lite](https://github.com/couchbase/couchbase-lite-ios) (v4.0.3, macOS 13.0+, actively maintained) could replace it but is significant overkill (~50–100 MB xcframework vs 439 lines, requires rave xcframework support, API rewrite, data migration). Consider either: (a) fixing the 3 deprecated calls in-place as a stop-gap, or (b) replacing kvdb with Couchbase Lite as a larger future project.
+
+---
+
+## Completed: Part 1 — Fixes to Existing Work
+
+*All items committed.*
+
+- **1a.** Fixed FSEventStream deadlock — removed `FSEventStreamFlushSync()` calls in `events.cc` and `fs_events.cc`
+- **1b.** Committed mkstemp→unlink fix in `path.cc`
+- **1c.** Fixed indentation in `tokenize.h` and `utf8.h`
+- **1d.** Fixed HOJSBridge duplicate category in `HOJSBridge.h`/`.mm`
+- **1e.** Removed dead WebView code in `HOJSBridge.mm` and `OakCommand.mm`
+- **1f.** Removed 31 `@available` guards across 22 files
+
+---
+
+## Completed: Part 2 — PR 11 (Remaining Deprecation Warnings)
+
+*All sub-commits 11g–11o committed. Build is zero warnings.*
+
+- **11g:** Trivial renames (`NSBackgroundStyleDark`, `iconForFileType:`, `openFile:`, etc.)
+- **11h:** NSUserNotification → UNUserNotificationCenter in CrashReporter.mm
+- **11i:** Added `<NSEditor>` protocol conformance in BundleEditor.mm, Find.mm
+- **11j:** `launchApplicationAtURL:` → `openApplicationAtURL:` in OakOpenWithMenu.mm
+- **11k:** NSKeyedArchiver/Unarchiver modernization in FileBrowserViewController.mm
+- **11l:** SecTransform → pragma suppression (DSA keys require key rotation — see Suppressions §1)
+- **11m:** SecKeychain → SecItem in proxy.cc, keychain.cc
+- **11n:** Dialog submodule fixes (UTType, ValueTransformers, NSConnection suppression)
+- **11o:** QuickLook pragma, unused variables, vendor build flags, REFERENCED_DYNAMICALLY fix
 
 ---
 
@@ -218,7 +192,7 @@ The stash (`stash@{0}`) has reference Xcode scheme files and project changes fro
 - Update `README.md` with macOS 13.0+ requirement, vendored capnp, tool list including xcodegen
 - Remove stale `#pragma` suppressions no longer needed
 - Clean up any remaining dead code
-- Verify `.gitmodules` points dialog to `faisal/exmate-dialog.git`, dialog-1.x to `faisal/dialog-1.x.git`
+- Verify `.gitmodules` points dialog to `faisal/exmate-dialog.git`, dialog-1.x to `faisal/exmate-dialog-1.x.git`
 
 ---
 

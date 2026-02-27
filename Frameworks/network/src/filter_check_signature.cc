@@ -52,6 +52,10 @@ namespace network
 		{
 			std::string signature = decode::base64(_signature);
 
+			// TODO: Migrate from SecTransform to modern API. SecKeyVerifySignature does
+			// not support DSA keys (only RSA/ECDSA). Requires key migration to ECDSA.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 			CFErrorRef err = nullptr;
 			CFDataRef sig_data = CFDataCreateWithBytesNoCopy(kCFAllocatorDefault, (const UInt8*)signature.data(), signature.size(), kCFAllocatorNull);
 			if(SecTransformRef verifier = SecVerifyTransformCreate(*key, sig_data, &err))
@@ -73,6 +77,7 @@ namespace network
 
 			if(sig_data)
 				CFRelease(sig_data);
+#pragma clang diagnostic pop
 		}
 		else
 			error = text::format("Unknown signee: ‘%s’.", _signee.c_str());

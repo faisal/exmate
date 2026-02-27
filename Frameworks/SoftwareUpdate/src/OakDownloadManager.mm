@@ -414,6 +414,10 @@ static NSString* GetHardwareInfo (int field, BOOL isInteger = NO)
 	{
 		if(SecKeyRef publicKey = (SecKeyRef)CFBridgingRetain([self signingKeyForPublicKeyString:publicKeyString]))
 		{
+			// TODO: Migrate from SecTransform to modern API. SecKeyVerifySignature does
+			// not support DSA keys (only RSA/ECDSA). Requires key migration to ECDSA.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 			CFErrorRef err = nullptr;
 			if(SecTransformRef verifier = SecVerifyTransformCreate(publicKey, (CFDataRef)signatureData, &err))
 			{
@@ -434,6 +438,7 @@ static NSString* GetHardwareInfo (int field, BOOL isInteger = NO)
 			{
 				os_log_error(OS_LOG_DEFAULT, "SecVerifyTransformCreate: %{public}@", err);
 			}
+#pragma clang diagnostic pop
 			CFRelease(publicKey);
 		}
 	}

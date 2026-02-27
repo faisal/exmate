@@ -553,7 +553,11 @@ static void* kOakCommitWindowIncludeItemObserverContext = &kOakCommitWindowInclu
 	if(!self.clientPortName) // Reply already sent
 		return;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+	// TODO: Migrate NSConnection IPC to NSXPCConnection (fundamental architecture change)
 	if(id proxy = [NSConnection rootProxyForConnectionWithRegisteredName:self.clientPortName host:nil])
+#pragma clang diagnostic pop
 	{
 		[proxy setProtocolForProxy:@protocol(OakCommitWindowClientProtocol)];
 
@@ -873,7 +877,11 @@ static void* kOakCommitWindowIncludeItemObserverContext = &kOakCommitWindowInclu
 @end
 
 @interface OakCommitWindowServer ()
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+// TODO: Migrate NSConnection IPC to NSXPCConnection (fundamental architecture change)
 @property (nonatomic) NSConnection* connection;
+#pragma clang diagnostic pop
 @end
 
 @implementation OakCommitWindowServer
@@ -887,8 +895,11 @@ static void* kOakCommitWindowIncludeItemObserverContext = &kOakCommitWindowInclu
 {
 	if(self = [super init])
 	{
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 		_connection = [NSConnection new];
 		[_connection setRootObject:self];
+#pragma clang diagnostic pop
 
 		NSString* serviceName = [NSString stringWithFormat:@"%@.CommitWindow.%d", NSBundle.mainBundle.bundleIdentifier, getpid()];
 		if([_connection registerName:serviceName] == NO)

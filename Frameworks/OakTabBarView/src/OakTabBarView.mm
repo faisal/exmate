@@ -1,3 +1,8 @@
+// TODO: Native NSWindow tabbing (tabbingMode/NSWindowTabGroup) was evaluated in PR 12
+// and found incompatible with TextMate's single-window multi-document architecture.
+// Each native "tab" must be a separate NSWindow, but DocumentWindowController manages
+// N documents in one window via _documents array. Migration would require refactoring
+// to one-window-per-document and reimplementing cross-window tab drag-drop.
 #import "OakTabBarView.h"
 #import <OakAppKit/NSImage Additions.h>
 #import <OakAppKit/OakUIConstructionFunctions.h>
@@ -262,8 +267,8 @@ static void* kOakTabViewSelectedContext  = &kOakTabViewSelectedContext;
 		DisableImplicitAnimationForBlock(^{
 			_backgroundView.fillColor  = NSColor.textColor;
 			_backgroundView.alphaValue = _selected ? 0 : (_mouseInside ? 0.2 : 0.1);
-			_topBorderView.fillColor   = [NSColor colorWithCalibratedWhite:NSBlack alpha:0.25];
-			_leftBorderView.fillColor  = [NSColor colorWithCalibratedWhite:NSBlack alpha:0.25];
+			_topBorderView.fillColor   = NSColor.separatorColor;
+			_leftBorderView.fillColor  = NSColor.separatorColor;
 
 			_textField.textColor  = NSColor.secondaryLabelColor;
 			_textField.alphaValue = _selected ? 1 : 0.5;
@@ -301,8 +306,8 @@ static void* kOakTabViewSelectedContext  = &kOakTabViewSelectedContext;
 		[self addConstraints:_overflowButtonConstraints];
 
 		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:[overflow]|" options:0 metrics:nil views:views]];
-		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[close]-(4)-|" options:0 metrics:nil views:views]];
-		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[title]-(3)-|" options:0 metrics:nil views:views]];
+		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[close]-(9)-|" options:0 metrics:nil views:views]];
+		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[title]-(8)-|" options:0 metrics:nil views:views]];
 		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[overflow]|" options:0 metrics:nil views:views]];
 
 		[_textField setContentHuggingPriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];

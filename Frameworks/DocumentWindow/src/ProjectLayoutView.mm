@@ -1,3 +1,5 @@
+// TODO: Future: migrate ProjectLayoutView to NSSplitViewController with NSSplitViewItem.behavior = .sidebar
+// for native macOS sidebar appearance and automatic sidebar vibrancy management.
 #import "ProjectLayoutView.h"
 #import <OakAppKit/OakUIConstructionFunctions.h>
 #import <OakFoundation/OakFoundation.h>

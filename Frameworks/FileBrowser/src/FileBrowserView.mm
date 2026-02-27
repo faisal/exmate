@@ -68,6 +68,18 @@
 
 		_outlineView.backgroundColor = NSColor.clearColor;
 		_scrollView.drawsBackground  = NO;
+
+		// TODO: Future: migrate ProjectLayoutView to NSSplitViewController with .sidebar style
+		// (NSSplitViewItem.behavior = .sidebar) which provides native sidebar vibrancy automatically.
+		NSVisualEffectView* sidebarBackground = [[NSVisualEffectView alloc] initWithFrame:NSZeroRect];
+		sidebarBackground.material     = NSVisualEffectMaterialSidebar;
+		sidebarBackground.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+		sidebarBackground.state        = NSVisualEffectStateFollowsWindowActiveState;
+		sidebarBackground.translatesAutoresizingMaskIntoConstraints = NO;
+		[self addSubview:sidebarBackground positioned:NSWindowBelow relativeTo:nil];
+		NSDictionary* bgViews = @{ @"bg": sidebarBackground };
+		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[bg]|" options:0 metrics:nil views:bgViews]];
+		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[bg]|" options:0 metrics:nil views:bgViews]];
 	}
 	return self;
 }

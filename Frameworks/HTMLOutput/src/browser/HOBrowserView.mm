@@ -16,7 +16,9 @@ static void ShowLoadErrorForURL (WKWebView* webView, NSURL* url, NSError* error)
 	[webView loadHTMLString:errorMsg baseURL:[NSURL fileURLWithPath:NSTemporaryDirectory()]];
 }
 
-@interface HOBrowserView () <WKUIDelegate>
+@interface HOBrowserView () <WKUIDelegate> {
+	BOOL _updatesProgress;
+}
 @property (nonatomic, readwrite) WKWebView* webView;
 @property (nonatomic, readwrite) HOStatusBar* statusBar;
 @property (nonatomic) HOWebViewDelegateHelper* webViewDelegateHelper;
@@ -27,6 +29,8 @@ static void ShowLoadErrorForURL (WKWebView* webView, NSURL* url, NSError* error)
 {
 	if(self = [super initWithFrame:frame])
 	{
+		_statusBar = [[HOStatusBar alloc] initWithFrame:NSZeroRect];
+
 		HOJSBridge* jsBridge = [HOJSBridge new];
 		[jsBridge setDelegate:_statusBar];
 
@@ -38,8 +42,6 @@ static void ShowLoadErrorForURL (WKWebView* webView, NSURL* url, NSError* error)
 		[webConfig.userContentController addUserScript:script];
 
 		_webView = [[WKWebView alloc] initWithFrame:NSZeroRect configuration:webConfig];
-
-		_statusBar = [[HOStatusBar alloc] initWithFrame:NSZeroRect];
 		_statusBar.delegate = _webView;
 
 		_webViewDelegateHelper          = [HOWebViewDelegateHelper new];
@@ -72,22 +74,21 @@ static void ShowLoadErrorForURL (WKWebView* webView, NSURL* url, NSError* error)
 
 - (void)dealloc
 {
+	[_webView stopLoading];
 	[self setUpdatesProgress:NO];
 	_webView.navigationDelegate = nil;
 	_webView.UIDelegate        = nil;
-	[_webView stopLoading];
 }
 
 - (void)setUpdatesProgress:(BOOL)flag
 {
+	if(flag == _updatesProgress)
+		return;
+	_updatesProgress = flag;
 	if(flag)
-	{
 		[_webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:nil];
-	}
 	else
-	{
 		[_webView removeObserver:self forKeyPath:@"estimatedProgress"];
-	}
 }
 
 - (void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id>*)change context:(void*)context

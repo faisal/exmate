@@ -3,6 +3,11 @@
 
 static double const AppVersion = 1.1;
 
+#if defined(__has_warning)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 @interface OakCommitWindowClient : NSObject <OakCommitWindowClientProtocol>
 @property (nonatomic) NSString*     portName;
 @property (nonatomic) NSConnection* connection;
@@ -97,3 +102,7 @@ int main (int argc, char* argv[])
 	}
 	return EX_OK;
 }
+
+#if defined(__has_warning)
+#pragma clang diagnostic pop
+#endif

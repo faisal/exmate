@@ -1170,7 +1170,7 @@ static NSMutableIndexSet* MutableLongestCommonSubsequence (NSArray* lhs, NSArray
 
 - (id)sessionState
 {
-	if(NSKeyedArchiver* coder = [[NSKeyedArchiver alloc] init])
+	if(NSKeyedArchiver* coder = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO])
 	{
 		[self encodeRestorableStateWithCoder:coder];
 		[coder finishEncoding];
@@ -1183,7 +1183,8 @@ static NSMutableIndexSet* MutableLongestCommonSubsequence (NSArray* lhs, NSArray
 {
 	if([state isKindOfClass:[NSData class]])
 	{
-		if(NSCoder* coder = [[NSKeyedUnarchiver alloc] initForReadingWithData:state])
+		NSError* coderError = nil;
+		if(NSCoder* coder = [[NSKeyedUnarchiver alloc] initForReadingFromData:state error:&coderError])
 			[self restoreStateWithCoder:coder];
 	}
 	else if([state isKindOfClass:[NSDictionary class]])

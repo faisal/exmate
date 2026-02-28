@@ -1,5 +1,8 @@
+build/
 build.ninja
 local.rave
 Frameworks/license/src/revoked_serials.cc
 xcuserdata/
 !Applications
+!/.claude/settings.local.json
+TextMate.xcodeproj

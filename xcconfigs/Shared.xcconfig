@@ -1,0 +1,62 @@
+// Shared build settings for all TextMate targets
+// Derived from default.rave and local.rave
+
+MACOSX_DEPLOYMENT_TARGET = 13.0
+APP_MIN_OS = $(MACOSX_DEPLOYMENT_TARGET)
+
+// Language standards (from default.rave)
+GCC_C_LANGUAGE_STANDARD = c99
+CLANG_CXX_LANGUAGE_STANDARD = c++2a
+CLANG_ENABLE_OBJC_ARC = YES
+CLANG_CXX_LIBRARY = libc++
+
+// Precompiled headers
+GCC_PRECOMPILE_PREFIX_HEADER = YES
+
+// Headers are resolved via build/include/ symlinks (not the built products dir).
+// Disable Xcode's automatic header copying for static libs to prevent the
+// project's "network" lib from shadowing system Network.framework headers
+// on case-insensitive macOS filesystems.
+PRECOMPS_INCLUDE_HEADERS_FROM_BUILT_PRODUCTS_DIR = NO
+INSTALLHDRS_COPY_PHASE = NO
+PUBLIC_HEADERS_FOLDER_PATH =
+
+// Disable Xcode header maps to prevent project headers (e.g. text/ctype.h)
+// from shadowing system headers (e.g. <ctype.h>) during PCH compilation.
+// The ninja build used explicit -I flags; we replicate that via framework
+// public headers and HEADER_SEARCH_PATHS instead.
+USE_HEADERMAP = NO
+ALWAYS_SEARCH_USER_PATHS = NO
+
+// Warnings (from default.rave FLAGS)
+WARNING_CFLAGS = -Wall -Wwrite-strings -Wformat -Winit-self -Wmissing-include-dirs -Wno-parentheses -Wno-sign-compare -Wno-switch -Wno-c99-designator
+
+// Custom compiler flags (from default.rave FLAGS)
+// NULL_STR uses a Unicode escape \uFFFF which must be passed via -D flag
+// to prevent xcconfig from interpreting the backslash escape sequence.
+OTHER_CFLAGS = $(inherited) -funsigned-char '-DNULL_STR="\\uFFFF"'
+OTHER_CPLUSPLUSFLAGS = $(inherited) -funsigned-char '-DNULL_STR="\\uFFFF"'
+
+// Preprocessor definitions (from default.rave FLAGS)
+// REST_API contains // so it cannot be set here (xcconfig treats // as comments);
+// it is defined via -D in default.rave FLAGS and passed through ninja.
+GCC_PREPROCESSOR_DEFINITIONS = $(inherited)
+
+// Search paths (from local.rave + default.rave)
+// build/include/ contains symlinks: text -> ../../Frameworks/text/src, etc.
+// This mirrors the ninja build's _Include/<target>/<target>/header.h layout,
+// allowing #include <text/format.h> to resolve via build/include/text/format.h.
+HEADER_SEARCH_PATHS = $(inherited) $(SRCROOT)/Shared/include $(SRCROOT)/build/include /opt/homebrew/include
+LIBRARY_SEARCH_PATHS = $(inherited) /opt/homebrew/lib
+
+// Linker (from default.rave LN_FLAGS)
+// All system frameworks and libraries are listed globally because the original
+// ninja build collected transitive dependencies and linked them at the final step.
+// With static library targets, these flags are ignored on the .a archives and
+// only take effect on the final executable/bundle targets.
+OTHER_LDFLAGS = $(inherited) -fobjc-link-runtime -framework AddressBook -framework ApplicationServices -framework AppKit -framework AudioToolbox -framework Carbon -framework Cocoa -framework CoreFoundation -framework ExceptionHandling -framework Foundation -framework Quartz -framework Security -framework SystemConfiguration -framework UserNotifications -framework WebKit -lcurl -liconv -lsqlite3 -lz
+
+// Code signing (from default.rave CS_IDENTITY and CS_FLAGS)
+CODE_SIGN_IDENTITY = -
+CODE_SIGN_STYLE = Manual
+OTHER_CODE_SIGN_FLAGS = --force --options runtime

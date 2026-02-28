@@ -29,5 +29,15 @@ fi
 
 if [[ -d "$builddir" ]];
 	then bin/rave -crelease -tTextMate -b"$builddir"
-	else bin/rave -crelease -tTextMate
+	else bin/rave -crelease -tTextMate -b"${PWD}/build"
+fi
+
+# ==============================
+# = Generate Xcode project     =
+# ==============================
+
+if command -v ruby >/dev/null 2>&1; then
+	bin/gen_xcodeproj
+else
+	echo >&2 "Warning: ruby not found. Skipping Xcode project generation."
 fi

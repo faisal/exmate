@@ -1,0 +1,720 @@
+#!/usr/bin/env ruby
+# bin/gen_xcodeproj
+#
+# Implements PR 13: generate TextMate.xcodeproj directly (no xcodegen needed).
+#
+# The generated Xcode project:
+#   • Uses PBXNativeTarget for each top-level ninja target, so Xcode knows
+#     the product type (app / tool / bundle) while the build action invokes
+#     ninja rather than its own compiler.
+#   • Shows source trees as folder references (blue folders) so new files
+#     added to the filesystem appear in Xcode automatically — true FS
+#     references, no ./configure re-run required.
+#   • Redirects ninja's builddir to $BUILD_DIR/ninja so all intermediate
+#     objects and final products land in DerivedData.
+#   • Rsyncs every built product to $BUILT_PRODUCTS_DIR so Xcode's Run,
+#     Debug, and Profile scheme actions can find and launch it.
+#
+# Called by ./configure, or run manually.
+# Usage: bin/gen_xcodeproj [--skip-symlinks]
+
+require 'fileutils'
+require 'digest'
+
+SRCROOT = File.expand_path('..', __dir__)
+Dir.chdir(SRCROOT)
+
+skip_symlinks = ARGV.include?('--skip-symlinks')
+
+# -----------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------
+
+# Deterministic 24-char Xcode UUID derived from a seed string.
+def uuid(seed)
+  Digest::MD5.hexdigest("gen_xcodeproj:#{seed}").upcase[0, 24]
+end
+
+# Quote a value for Xcode's ASCII plist format.
+def q(val)
+  s = val.to_s
+  return '""' if s.empty?
+  s =~ /\A[A-Za-z0-9_.\/\-]+\z/ ? s : '"' + s.gsub('\\', '\\\\\\\\').gsub('"', '\\"').gsub("\n", "\\n") + '"'
+end
+
+# -----------------------------------------------------------------------
+# Check for xcodebuild (we still need it to detect the Xcode version)
+# -----------------------------------------------------------------------
+
+xcode_version = `xcodebuild -version 2>/dev/null`.split("\n").first
+                  &.sub('Xcode ', '')&.strip || 'unknown'
+puts "Detected Xcode #{xcode_version}"
+
+# -----------------------------------------------------------------------
+# Create build/include/ header symlinks
+# -----------------------------------------------------------------------
+# Lets IDE features (jump-to-definition, code completion) follow headers
+# like <text/format.h> through build/include/text/ → Frameworks/text/src/.
+# 'network' is excluded to avoid shadowing Apple's Network.framework.
+
+unless skip_symlinks
+  FileUtils.mkdir_p('build/include')
+  Dir.glob('Frameworks/*/src').each do |src|
+    name = File.basename(File.dirname(src))
+    next if name == 'network'
+    link = "build/include/#{name}"
+    dest = "../../#{src}"
+    unless File.symlink?(link)
+      File.symlink(dest, link)
+      puts "  Symlink: #{link} → #{dest}"
+    end
+  end
+
+  FileUtils.mkdir_p('build/include-network')
+  unless File.symlink?('build/include-network/network')
+    File.symlink('../../Frameworks/network/src', 'build/include-network/network')
+    puts "  Symlink: build/include-network/network"
+  end
+
+  if Dir.exist?('vendor/Onigmo/vendor') && !File.symlink?('build/include/Onigmo')
+    File.symlink('../../vendor/Onigmo/vendor', 'build/include/Onigmo')
+    puts "  Symlink: build/include/Onigmo"
+  end
+end
+
+# -----------------------------------------------------------------------
+# Per-target static metadata (mirrored from the old project.yml)
+# -----------------------------------------------------------------------
+# product_type  – Xcode productType string
+# product_name  – product file/bundle name (with extension where applicable)
+# file_type     – explicitFileType for the product PBXFileReference
+# ninja_path    – path of the built product relative to $NINJA_BUILDDIR/$NINJA_CONF/
+# settings      – per-target XCBuildConfiguration settings (sorted when emitted)
+
+TARGET_META = {
+  'TextMate' => {
+    product_type: 'com.apple.product-type.application',
+    product_name: 'TextMate.app',
+    file_type:    'wrapper.application',
+    ninja_path:   'Applications/TextMate/TextMate.app',
+    settings: {
+      'CODE_SIGN_ENTITLEMENTS'    => '$(SRCROOT)/Applications/TextMate/Entitlements.plist',
+      'GCC_PREFIX_HEADER'         => '$(SRCROOT)/Shared/PCH/prelude.mm',
+      'INFOPLIST_FILE'            => '$(SRCROOT)/Applications/TextMate/Info.plist',
+      'OTHER_CFLAGS'              => '$(inherited) -idirafter $(SRCROOT)/build/include-network',
+      'OTHER_CPLUSPLUSFLAGS'      => '$(inherited) -idirafter $(SRCROOT)/build/include-network',
+      'OTHER_LDFLAGS'             => '$(inherited) -Wl,-U,__Z15revoked_serialsv',
+      'PRODUCT_BUNDLE_IDENTIFIER' => 'com.macromates.TextMate',
+    },
+  },
+  'NewApplication' => {
+    product_type: 'com.apple.product-type.application',
+    product_name: 'NewApplication.app',
+    file_type:    'wrapper.application',
+    ninja_path:   'Applications/NewApplication/NewApplication.app',
+    settings: {
+      'GCC_PREFIX_HEADER'         => '$(SRCROOT)/Shared/PCH/prelude.mm',
+      'INFOPLIST_FILE'            => '$(SRCROOT)/Applications/NewApplication/Info.plist',
+      'OTHER_LDFLAGS'             => '$(inherited) -framework Cocoa',
+      'PRODUCT_BUNDLE_IDENTIFIER' => 'org.example.NewApplication',
+    },
+  },
+  'mate' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'mate',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'Applications/mate/mate',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.mm',
+      'OTHER_LDFLAGS'     => '$(inherited) -framework ApplicationServices -framework Security',
+    },
+  },
+  'tm_query' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'tm_query',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'Applications/tm_query/tm_query',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.cc',
+    },
+  },
+  'gtm' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'gtm',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'Applications/gtm/gtm',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.cc',
+    },
+  },
+  'indent' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'indent',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'Applications/indent/indent',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.cc',
+    },
+  },
+  'bl' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'bl',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'Applications/bl/bl',
+    settings: {
+      'GCC_PREFIX_HEADER'   => '$(SRCROOT)/Shared/PCH/prelude.cc',
+      'HEADER_SEARCH_PATHS' => '$(inherited) $(SRCROOT)/build/include-network',
+    },
+  },
+  'pretty_plist' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'pretty_plist',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'Applications/pretty_plist/pretty_plist',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.cc',
+    },
+  },
+  'PrivilegedTool' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'PrivilegedTool',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'Applications/PrivilegedTool/PrivilegedTool',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.mm',
+    },
+  },
+  'CommitWindowTool' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'CommitWindowTool',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'Frameworks/CommitWindow/CommitWindowTool',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.mm',
+    },
+  },
+  'tm_dialog' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'tm_dialog',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'PlugIns/dialog-1.x/tm_dialog',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.mm',
+      'OTHER_LDFLAGS'     => '$(inherited) -framework Foundation',
+    },
+  },
+  'tm_dialog2' => {
+    product_type: 'com.apple.product-type.tool',
+    product_name: 'tm_dialog2',
+    file_type:    'compiled.mach-o.executable',
+    ninja_path:   'PlugIns/dialog/tm_dialog2',
+    settings: {
+      'GCC_PREFIX_HEADER' => '$(SRCROOT)/Shared/PCH/prelude.mm',
+      'OTHER_LDFLAGS'     => '$(inherited) -framework Foundation',
+    },
+  },
+  'Dialog' => {
+    product_type: 'com.apple.product-type.bundle',
+    product_name: 'Dialog.tmplugin',
+    file_type:    'wrapper.cfbundle',
+    ninja_path:   'PlugIns/dialog-1.x/Dialog.tmplugin',
+    settings: {
+      'GCC_PREFIX_HEADER'         => '$(SRCROOT)/Shared/PCH/prelude.mm',
+      'INFOPLIST_FILE'            => '$(SRCROOT)/PlugIns/dialog-1.x/Info.plist',
+      'MACH_O_TYPE'               => 'mh_bundle',
+      'OTHER_LDFLAGS'             => '$(inherited) -framework Cocoa',
+      'PRODUCT_BUNDLE_IDENTIFIER' => 'com.macromates.plugin.Dialog',
+      'WRAPPER_EXTENSION'         => 'tmplugin',
+    },
+  },
+  'Dialog2' => {
+    product_type: 'com.apple.product-type.bundle',
+    product_name: 'Dialog2.tmplugin',
+    file_type:    'wrapper.cfbundle',
+    ninja_path:   'PlugIns/dialog/Dialog2.tmplugin',
+    settings: {
+      'GCC_PREFIX_HEADER'         => '$(SRCROOT)/Shared/PCH/prelude.mm',
+      'INFOPLIST_FILE'            => '$(SRCROOT)/PlugIns/dialog/Info.plist',
+      'MACH_O_TYPE'               => 'mh_bundle',
+      'OTHER_LDFLAGS'             => '$(inherited) -framework Cocoa -framework WebKit -framework Quartz',
+      'PRODUCT_BUNDLE_IDENTIFIER' => 'com.macromates.plugin.Dialog2',
+      'WRAPPER_EXTENSION'         => 'tmplugin',
+    },
+  },
+  'TextMateQL' => {
+    product_type: 'com.apple.product-type.bundle',
+    product_name: 'TextMateQL.qlgenerator',
+    file_type:    'wrapper.cfbundle',
+    ninja_path:   'Applications/QuickLookGenerator/TextMateQL.qlgenerator',
+    settings: {
+      'GCC_PREFIX_HEADER'         => '$(SRCROOT)/Shared/PCH/prelude.mm',
+      'INFOPLIST_FILE'            => '$(SRCROOT)/Applications/QuickLookGenerator/Info.plist',
+      'MACH_O_TYPE'               => 'mh_bundle',
+      'OTHER_LDFLAGS'             => '$(inherited) -framework CoreFoundation -framework QuickLook -framework AppKit -framework OSAKit',
+      'PRODUCT_BUNDLE_IDENTIFIER' => 'com.macromates.TextMateQL',
+      'WRAPPER_EXTENSION'         => 'qlgenerator',
+    },
+  },
+}.freeze
+
+# Fall-back metadata for any target not listed in TARGET_META above.
+def default_meta_for(name, type)
+  case type
+  when :app
+    { product_type: 'com.apple.product-type.application',
+      product_name: "#{name}.app",
+      file_type:    'wrapper.application',
+      ninja_path:   "Applications/#{name}/#{name}.app",
+      settings:     {} }
+  when :bundle
+    { product_type: 'com.apple.product-type.bundle',
+      product_name: name,
+      file_type:    'wrapper.cfbundle',
+      ninja_path:   "PlugIns/#{name}/#{name}",
+      settings:     {} }
+  else # :tool
+    { product_type: 'com.apple.product-type.tool',
+      product_name: name,
+      file_type:    'compiled.mach-o.executable',
+      ninja_path:   "Applications/#{name}/#{name}",
+      settings:     {} }
+  end
+end
+
+# -----------------------------------------------------------------------
+# Discover top-level ninja targets from build.ninja
+# -----------------------------------------------------------------------
+# Top-level targets: "build <Name>/release: phony <product-path>"
+#   product contains .app/        → :app
+#   product contains .tmplugin/   → :bundle
+#   product contains .qlgenerator/→ :bundle
+#   otherwise                     → :tool
+
+NINJA_TARGETS = []
+TARGET_TYPES  = {}
+
+unless File.exist?('build.ninja')
+  abort "*** build.ninja not found.  Run ./configure first."
+end
+
+IO.foreach('build.ninja', encoding: 'binary:UTF-8', invalid: :replace) do |line|
+  m = line.match(/^build ([A-Za-z][A-Za-z0-9_]*)\/release: phony (.+)$/)
+  next unless m
+  name = m[1]; path = m[2].strip
+  type = if    path.include?('.app/')          then :app
+           elsif path.include?('.tmplugin/')    then :bundle
+           elsif path.include?('.qlgenerator/') then :bundle
+           else                                     :tool
+           end
+  NINJA_TARGETS << name
+  TARGET_TYPES[name] = type
+end
+
+abort "*** No targets found in build.ninja." if NINJA_TARGETS.empty?
+puts "Found #{NINJA_TARGETS.size} targets: #{NINJA_TARGETS.join(', ')}"
+
+# Look up metadata for a target, falling back to defaults for unknown targets.
+def meta_for(name)
+  TARGET_META[name] || default_meta_for(name, TARGET_TYPES[name])
+end
+
+# -----------------------------------------------------------------------
+# Build script content for each target
+# -----------------------------------------------------------------------
+
+COMMON_PREAMBLE = <<~'BASH'
+  #!/bin/sh
+  set -e
+  export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+  cd "$SRCROOT"
+
+  # Map Xcode configuration → ninja variant.
+  case "${CONFIGURATION}" in
+    Debug) NINJA_CONF=debug  ;;
+    *)     NINJA_CONF=release ;;
+  esac
+
+  # Use the builddir rave configured when ./configure was run.
+  # We intentionally do NOT redirect this to Xcode's BUILD_DIR: doing so would
+  # rewrite build.ninja, causing ninja's generator rule (MakeBuildfile) to
+  # re-invoke rave without the -b flag — resetting builddir and defeating the
+  # redirect on every build.
+  NINJA_BUILDDIR=$(awk 'NR==1 && /^builddir/{print $3}' build.ninja 2>/dev/null || echo "build")
+BASH
+
+def build_script_for(name, _type_ignored)
+  meta   = meta_for(name)
+  path   = meta[:ninja_path]
+  pname  = meta[:product_name]
+  # Bundle products (apps, plugins, frameworks) are directories; tools are
+  # plain files.  We detect by whether the product name has an extension.
+  is_bundle = pname =~ /\.(app|tmplugin|qlgenerator|framework|xctest|bundle)\z/
+
+  s = COMMON_PREAMBLE.dup
+  s << "\nninja \"#{name}/${NINJA_CONF}\"\n"
+  if is_bundle
+    s << <<~BASH
+
+      # Sync the built product to $BUILT_PRODUCTS_DIR so Xcode's Run/Debug/Profile work.
+      rsync -a --delete \\
+        "${NINJA_BUILDDIR}/${NINJA_CONF}/#{path}/" \\
+        "${BUILT_PRODUCTS_DIR}/#{pname}/"
+    BASH
+  else
+    s << <<~BASH
+
+      # Copy the built product to $BUILT_PRODUCTS_DIR so Xcode's Run/Debug/Profile work.
+      rsync -a \\
+        "${NINJA_BUILDDIR}/${NINJA_CONF}/#{path}" \\
+        "${BUILT_PRODUCTS_DIR}/#{pname}"
+    BASH
+  end
+  s
+end
+
+# -----------------------------------------------------------------------
+# pbxproj generation helpers
+# -----------------------------------------------------------------------
+
+# Folder references shown as source groups in the project navigator.
+# Using PBXFileReference with lastKnownFileType=folder creates a "blue folder"
+# (true FS reference) that auto-updates when files are added — no ./configure
+# re-run required.
+FOLDER_GROUPS = %w[Applications Frameworks PlugIns Shared xcconfigs bin]
+
+# UUIDs ---------------------------------------------------------------
+PROJ_UUID        = uuid('project')
+ROOT_GROUP_UUID  = uuid('root_group')
+PRODUCTS_UUID    = uuid('products_group')
+PROJ_CFGLIST     = uuid('project_cfglist')
+PROJ_CFG_DEBUG   = uuid('project_cfg_debug')
+PROJ_CFG_RELEASE = uuid('project_cfg_release')
+
+# xcconfig file references (for baseConfigurationReference on project configs)
+XCCONFIG_DEBUG_UUID   = uuid('xcconfig_debug')
+XCCONFIG_RELEASE_UUID = uuid('xcconfig_release')
+
+folder_uuids  = FOLDER_GROUPS.each_with_object({}) { |g, h| h[g] = uuid("folder:#{g}") }
+
+target_uuids  = NINJA_TARGETS.each_with_object({}) { |n, h| h[n] = uuid("target:#{n}") }
+phase_uuids   = NINJA_TARGETS.each_with_object({}) { |n, h| h[n] = uuid("phase:#{n}") }
+cfglist_uuids = NINJA_TARGETS.each_with_object({}) { |n, h| h[n] = uuid("cfglist:#{n}") }
+cfg_dbg_uuids = NINJA_TARGETS.each_with_object({}) { |n, h| h[n] = uuid("cfg_dbg:#{n}") }
+cfg_rel_uuids = NINJA_TARGETS.each_with_object({}) { |n, h| h[n] = uuid("cfg_rel:#{n}") }
+product_uuids = NINJA_TARGETS.each_with_object({}) { |n, h| h[n] = uuid("product:#{n}") }
+
+# -----------------------------------------------------------------------
+# Write project.pbxproj
+# -----------------------------------------------------------------------
+
+def pbx_list(items, indent = 3)
+  pad = "\t" * indent
+  items.empty? ? "()" : "(\n#{items.map { |i| "#{pad}#{i}," }.join("\n")}\n#{"\t" * (indent - 1)})"
+end
+
+pbxproj = []
+pbxproj << '// !$*UTF8*$!'
+pbxproj << '{'
+pbxproj << "\tarchiveVersion = 1;"
+pbxproj << "\tclasses = {};"
+pbxproj << "\tobjectVersion = 56;"
+pbxproj << "\tobjects = {"
+pbxproj << ""
+
+# ── PBXNativeTarget ───────────────────────────────────────────────────
+pbxproj << "\t\t/* Begin PBXNativeTarget section */"
+NINJA_TARGETS.each do |name|
+  meta       = meta_for(name)
+  pname_stem = meta[:product_name].sub(/\.[^.]+$/, '')   # e.g. "TextMate", "Dialog"
+  pbxproj << "\t\t#{target_uuids[name]} /* #{name} */ = {"
+  pbxproj << "\t\t\tisa = PBXNativeTarget;"
+  pbxproj << "\t\t\tbuildConfigurationList = #{cfglist_uuids[name]} /* Build configuration list for PBXNativeTarget \"#{name}\" */;"
+  pbxproj << "\t\t\tbuildPhases = ("
+  pbxproj << "\t\t\t\t#{phase_uuids[name]} /* Build #{name} (ninja) */,"
+  pbxproj << "\t\t\t);"
+  pbxproj << "\t\t\tbuildRules = ();"
+  pbxproj << "\t\t\tdependencies = ();"
+  pbxproj << "\t\t\tname = #{q(name)};"
+  pbxproj << "\t\t\tproductName = #{q(pname_stem)};"
+  pbxproj << "\t\t\tproductReference = #{product_uuids[name]} /* #{meta[:product_name]} */;"
+  pbxproj << "\t\t\tproductType = \"#{meta[:product_type]}\";"
+  pbxproj << "\t\t};"
+end
+pbxproj << "\t\t/* End PBXNativeTarget section */"
+pbxproj << ""
+
+# ── PBXFileReference (folder refs + xcconfig refs + product refs) ─────
+pbxproj << "\t\t/* Begin PBXFileReference section */"
+
+# Blue-folder references (navigator source trees)
+FOLDER_GROUPS.each do |g|
+  pbxproj << "\t\t#{folder_uuids[g]} /* #{g} */ = {isa = PBXFileReference; lastKnownFileType = folder; name = #{q(g)}; path = #{q(g)}; sourceTree = #{q('<group>')}; };"
+end
+
+# xcconfig files (referenced for baseConfigurationReference)
+pbxproj << "\t\t#{XCCONFIG_DEBUG_UUID} /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = \"Debug.xcconfig\"; path = \"xcconfigs/Debug.xcconfig\"; sourceTree = SOURCE_ROOT; };"
+pbxproj << "\t\t#{XCCONFIG_RELEASE_UUID} /* Release.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = \"Release.xcconfig\"; path = \"xcconfigs/Release.xcconfig\"; sourceTree = SOURCE_ROOT; };"
+
+# Product file references (live in BUILT_PRODUCTS_DIR after each build)
+NINJA_TARGETS.each do |name|
+  meta = meta_for(name)
+  pbxproj << "\t\t#{product_uuids[name]} /* #{meta[:product_name]} */ = {isa = PBXFileReference; explicitFileType = #{meta[:file_type]}; includeInIndex = 0; path = #{q(meta[:product_name])}; sourceTree = BUILT_PRODUCTS_DIR; };"
+end
+
+pbxproj << "\t\t/* End PBXFileReference section */"
+pbxproj << ""
+
+# ── PBXGroup ──────────────────────────────────────────────────────────
+pbxproj << "\t\t/* Begin PBXGroup section */"
+
+# Products group — populated with one entry per target
+pbxproj << "\t\t#{PRODUCTS_UUID} /* Products */ = {"
+pbxproj << "\t\t\tisa = PBXGroup;"
+pbxproj << "\t\t\tchildren = ("
+NINJA_TARGETS.each { |n| pbxproj << "\t\t\t\t#{product_uuids[n]} /* #{meta_for(n)[:product_name]} */," }
+pbxproj << "\t\t\t);"
+pbxproj << "\t\t\tname = Products;"
+pbxproj << "\t\t\tsourceTree = #{q('<group>')};"
+pbxproj << "\t\t};"
+
+# Root group: folder references first, then Products
+root_children = FOLDER_GROUPS.map { |g| "#{folder_uuids[g]} /* #{g} */" } + ["#{PRODUCTS_UUID} /* Products */"]
+pbxproj << "\t\t#{ROOT_GROUP_UUID} = {"
+pbxproj << "\t\t\tisa = PBXGroup;"
+pbxproj << "\t\t\tchildren = ("
+root_children.each { |c| pbxproj << "\t\t\t\t#{c}," }
+pbxproj << "\t\t\t);"
+pbxproj << "\t\t\tsourceTree = #{q('<group>')};"
+pbxproj << "\t\t};"
+pbxproj << "\t\t/* End PBXGroup section */"
+pbxproj << ""
+
+# ── PBXProject ────────────────────────────────────────────────────────
+pbxproj << "\t\t/* Begin PBXProject section */"
+pbxproj << "\t\t#{PROJ_UUID} /* Project object */ = {"
+pbxproj << "\t\t\tisa = PBXProject;"
+pbxproj << "\t\t\tattributes = {"
+pbxproj << "\t\t\tBuildIndependentTargetsInParallel = YES;"
+pbxproj << "\t\t\t};"
+pbxproj << "\t\t\tbuildConfigurationList = #{PROJ_CFGLIST};"
+pbxproj << "\t\t\tcompatibilityVersion = #{q('Xcode 14.0')};"
+pbxproj << "\t\t\tdevelopmentRegion = en;"
+pbxproj << "\t\t\thasScannedForEncodings = 0;"
+pbxproj << "\t\t\tknownRegions = (en, Base);"
+pbxproj << "\t\t\tmainGroup = #{ROOT_GROUP_UUID};"
+pbxproj << "\t\t\tproductRefGroup = #{PRODUCTS_UUID};"
+pbxproj << "\t\t\tprojectDirPath = #{q('')};"
+pbxproj << "\t\t\tprojectRoot = #{q('')};"
+pbxproj << "\t\t\ttargets = ("
+NINJA_TARGETS.each { |n| pbxproj << "\t\t\t\t#{target_uuids[n]} /* #{n} */," }
+pbxproj << "\t\t\t);"
+pbxproj << "\t\t};"
+pbxproj << "\t\t/* End PBXProject section */"
+pbxproj << ""
+
+# ── PBXShellScriptBuildPhase ─────────────────────────────────────────
+pbxproj << "\t\t/* Begin PBXShellScriptBuildPhase section */"
+NINJA_TARGETS.each do |name|
+  script = build_script_for(name, TARGET_TYPES[name])
+  pbxproj << "\t\t#{phase_uuids[name]} /* Build #{name} (ninja) */ = {"
+  pbxproj << "\t\t\tisa = PBXShellScriptBuildPhase;"
+  pbxproj << "\t\t\talwaysOutOfDate = 1;"
+  pbxproj << "\t\t\tbuildActionMask = 2147483647;"
+  pbxproj << "\t\t\tfiles = ();"
+  pbxproj << "\t\t\tinputFileListPaths = ();"
+  pbxproj << "\t\t\tinputPaths = ();"
+  pbxproj << "\t\t\tname = #{q("Build #{name} (ninja)")};"
+  pbxproj << "\t\t\toutputFileListPaths = ();"
+  pbxproj << "\t\t\toutputPaths = ();"
+  pbxproj << "\t\t\trunOnlyForDeploymentPostprocessing = 0;"
+  pbxproj << "\t\t\tshellPath = /bin/sh;"
+  pbxproj << "\t\t\tshellScript = #{q(script)};"
+  pbxproj << "\t\t\tshowEnvVarsInLog = 0;"
+  pbxproj << "\t\t};"
+end
+pbxproj << "\t\t/* End PBXShellScriptBuildPhase section */"
+pbxproj << ""
+
+# ── XCBuildConfiguration ─────────────────────────────────────────────
+pbxproj << "\t\t/* Begin XCBuildConfiguration section */"
+
+# Project-level configurations — backed by xcconfigs/Debug.xcconfig etc.
+[['Debug',   PROJ_CFG_DEBUG,   XCCONFIG_DEBUG_UUID,   'Debug.xcconfig'],
+ ['Release', PROJ_CFG_RELEASE, XCCONFIG_RELEASE_UUID, 'Release.xcconfig']].each do |cfg, u, xccu, xccn|
+  pbxproj << "\t\t#{u} /* #{cfg} */ = {"
+  pbxproj << "\t\t\tisa = XCBuildConfiguration;"
+  pbxproj << "\t\t\tbaseConfigurationReference = #{xccu} /* #{xccn} */;"
+  pbxproj << "\t\t\tbuildSettings = {"
+  pbxproj << "\t\t\t};"
+  pbxproj << "\t\t\tname = #{cfg};"
+  pbxproj << "\t\t};"
+end
+
+# Per-target configurations — PRODUCT_NAME plus all metadata settings, sorted.
+NINJA_TARGETS.each do |name|
+  meta       = meta_for(name)
+  pname_stem = meta[:product_name].sub(/\.[^.]+$/, '')
+  settings   = { 'PRODUCT_NAME' => pname_stem }.merge(meta[:settings])
+  { 'Debug' => cfg_dbg_uuids[name], 'Release' => cfg_rel_uuids[name] }.each do |cfg, u|
+    pbxproj << "\t\t#{u} /* #{cfg} */ = {"
+    pbxproj << "\t\t\tisa = XCBuildConfiguration;"
+    pbxproj << "\t\t\tbuildSettings = {"
+    settings.sort.each { |k, v| pbxproj << "\t\t\t\t#{k} = #{q(v)};" }
+    pbxproj << "\t\t\t};"
+    pbxproj << "\t\t\tname = #{cfg};"
+    pbxproj << "\t\t};"
+  end
+end
+pbxproj << "\t\t/* End XCBuildConfiguration section */"
+pbxproj << ""
+
+# ── XCConfigurationList ───────────────────────────────────────────────
+pbxproj << "\t\t/* Begin XCConfigurationList section */"
+
+pbxproj << "\t\t#{PROJ_CFGLIST} /* Build configuration list for PBXProject \"TextMate\" */ = {"
+pbxproj << "\t\t\tisa = XCConfigurationList;"
+pbxproj << "\t\t\tbuildConfigurations = ("
+pbxproj << "\t\t\t\t#{PROJ_CFG_DEBUG} /* Debug */,"
+pbxproj << "\t\t\t\t#{PROJ_CFG_RELEASE} /* Release */,"
+pbxproj << "\t\t\t);"
+pbxproj << "\t\t\tdefaultConfigurationIsVisible = 0;"
+pbxproj << "\t\t\tdefaultConfigurationName = Release;"
+pbxproj << "\t\t};"
+
+NINJA_TARGETS.each do |name|
+  pbxproj << "\t\t#{cfglist_uuids[name]} /* Build configuration list for PBXNativeTarget \"#{name}\" */ = {"
+  pbxproj << "\t\t\tisa = XCConfigurationList;"
+  pbxproj << "\t\t\tbuildConfigurations = ("
+  pbxproj << "\t\t\t\t#{cfg_dbg_uuids[name]} /* Debug */,"
+  pbxproj << "\t\t\t\t#{cfg_rel_uuids[name]} /* Release */,"
+  pbxproj << "\t\t\t);"
+  pbxproj << "\t\t\tdefaultConfigurationIsVisible = 0;"
+  pbxproj << "\t\t\tdefaultConfigurationName = Release;"
+  pbxproj << "\t\t};"
+end
+pbxproj << "\t\t/* End XCConfigurationList section */"
+pbxproj << ""
+
+pbxproj << "\t};"
+pbxproj << "\trootObject = #{PROJ_UUID} /* Project object */;"
+pbxproj << "}"
+
+# -----------------------------------------------------------------------
+# Write the .xcodeproj package
+# -----------------------------------------------------------------------
+
+proj_dir = 'TextMate.xcodeproj'
+FileUtils.mkdir_p(proj_dir)
+File.write("#{proj_dir}/project.pbxproj", pbxproj.join("\n") + "\n")
+puts "Wrote #{proj_dir}/project.pbxproj"
+
+# -----------------------------------------------------------------------
+# Write xcscheme files
+# -----------------------------------------------------------------------
+# Each scheme invokes the corresponding Xcode target.  For app and tool
+# targets we add a BuildableProductRunnable so Xcode's Run action can
+# find and launch the product from $BUILT_PRODUCTS_DIR (where the build
+# script rsyncs / copies it).  Bundle targets (plugins, QL generators)
+# have no runnable since they cannot be launched directly.
+
+schemes_dir = "#{proj_dir}/xcshareddata/xcschemes"
+FileUtils.mkdir_p(schemes_dir)
+
+NINJA_TARGETS.each do |name|
+  meta       = meta_for(name)
+  type       = TARGET_TYPES[name]
+  target_ref = target_uuids[name]
+  prod_name  = meta[:product_name]
+
+  # Build the LaunchAction runnable element.
+  # - apps and tools → BuildableProductRunnable (Xcode tracks the product)
+  # - bundles        → empty (no standalone launch)
+  if type != :bundle
+    launch_runnable = <<~XML
+            <BuildableProductRunnable
+               runnableDebuggingMode = "0">
+               <BuildableReference
+                  BuildableIdentifier = "primary"
+                  BlueprintIdentifier = "#{target_ref}"
+                  BuildableName = "#{prod_name}"
+                  BlueprintName = "#{name}"
+                  ReferencedContainer = "container:TextMate.xcodeproj">
+               </BuildableReference>
+            </BuildableProductRunnable>
+    XML
+    launch_debugger  = 'Xcode.DebuggerFoundation.Debugger.LLDB'
+    launch_launcher  = 'Xcode.DebuggerFoundation.Launcher.LLDB'
+  else
+    launch_runnable = ""
+    launch_debugger = ""
+    launch_launcher = "Xcode.IDEFoundation.Launcher.PosixSpawn"
+  end
+
+  scheme = <<~XML
+    <?xml version="1.0" encoding="UTF-8"?>
+    <Scheme
+       LastUpgradeVersion = "#{xcode_version.delete('.').ljust(4, '0')}"
+       version = "1.3">
+       <BuildAction
+          parallelizeBuildables = "YES"
+          buildImplicitDependencies = "YES">
+          <BuildActionEntries>
+             <BuildActionEntry
+                buildForTesting = "YES"
+                buildForRunning = "YES"
+                buildForProfiling = "YES"
+                buildForArchiving = "YES"
+                buildForAnalyzing = "YES">
+                <BuildableReference
+                   BuildableIdentifier = "primary"
+                   BlueprintIdentifier = "#{target_ref}"
+                   BuildableName = "#{prod_name}"
+                   BlueprintName = "#{name}"
+                   ReferencedContainer = "container:TextMate.xcodeproj">
+                </BuildableReference>
+             </BuildActionEntry>
+          </BuildActionEntries>
+       </BuildAction>
+       <TestAction
+          buildConfiguration = "Debug"
+          selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+          selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+          shouldUseLaunchSchemeArgsEnv = "YES">
+          <Testables>
+          </Testables>
+       </TestAction>
+       <LaunchAction
+          buildConfiguration = "Debug"
+          selectedDebuggerIdentifier = "#{launch_debugger}"
+          selectedLauncherIdentifier = "#{launch_launcher}"
+          launchStyle = "0"
+          useCustomWorkingDirectory = "NO"
+          ignoresPersistentStateOnLaunch = "NO"
+          debugDocumentVersioning = "YES"
+          debugServiceExtension = "internal"
+          allowLocationSimulation = "YES">
+    #{launch_runnable.chomp}
+       </LaunchAction>
+       <ProfileAction
+          buildConfiguration = "Release"
+          shouldUseLaunchSchemeArgsEnv = "YES"
+          savedToolIdentifier = ""
+          useCustomWorkingDirectory = "NO"
+          debugDocumentVersioning = "YES">
+       </ProfileAction>
+       <AnalyzeAction
+          buildConfiguration = "Debug">
+       </AnalyzeAction>
+       <ArchiveAction
+          buildConfiguration = "Release"
+          revealArchiveInOrganizer = "YES">
+       </ArchiveAction>
+    </Scheme>
+  XML
+
+  scheme_path = "#{schemes_dir}/#{name}.xcscheme"
+  File.write(scheme_path, scheme)
+end
+puts "Wrote #{NINJA_TARGETS.size} xcscheme files to #{schemes_dir}/"
+
+puts "Done. TextMate.xcodeproj is ready."

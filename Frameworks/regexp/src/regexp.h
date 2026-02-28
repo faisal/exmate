@@ -1,10 +1,8 @@
 #ifndef ONIG_REGEXP_H_UMTUKY6I
 #define ONIG_REGEXP_H_UMTUKY6I
 
-#include <Onigmo/oniguruma.h>
+#include <oniguruma.h>
 #include <oak/debug.h>
-
-#define ONIG_OPTION_NOTGPOS (ONIG_OPTION_MAXBIT << 1)
 
 namespace regexp
 {

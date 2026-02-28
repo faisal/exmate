@@ -1,4 +1,4 @@
-#include <Onigmo/oniguruma.h>
+#include <oniguruma.h>
 
 #define ONIG_OPTION_BACKWARD (ONIG_OPTION_MAXBIT << 1)
 
@@ -36,19 +36,19 @@ void test_bol ()
 
 	OAK_ASSERT_EQ( "0-3", match(pattern("^foo"), buf));
 	OAK_ASSERT_EQ("8-11", match(pattern("^foo"), buf, ONIG_OPTION_NOTBOL));
-	OAK_ASSERT_EQ( "0-3", match(pattern("^foo"), buf, ONIG_OPTION_NOTBOS));
+	OAK_ASSERT_EQ( "0-3", match(pattern("^foo"), buf, ONIG_OPTION_NOT_BEGIN_STRING));
 
 	OAK_ASSERT_EQ( "0-3", match(pattern("\\Afoo"), buf));
 	OAK_ASSERT_EQ( "0-3", match(pattern("\\Afoo"), buf, ONIG_OPTION_NOTBOL));
-	OAK_ASSERT_EQ("none", match(pattern("\\Afoo"), buf, ONIG_OPTION_NOTBOS));
+	OAK_ASSERT_EQ("none", match(pattern("\\Afoo"), buf, ONIG_OPTION_NOT_BEGIN_STRING));
 
 	OAK_ASSERT_EQ( "0-3", match(pattern("^foo", ONIG_OPTION_SINGLELINE), buf));
 	OAK_ASSERT_EQ( "0-3", match(pattern("^foo", ONIG_OPTION_SINGLELINE), buf, ONIG_OPTION_NOTBOL));
-	OAK_ASSERT_EQ("none", match(pattern("^foo", ONIG_OPTION_SINGLELINE), buf, ONIG_OPTION_NOTBOS));
+	OAK_ASSERT_EQ("none", match(pattern("^foo", ONIG_OPTION_SINGLELINE), buf, ONIG_OPTION_NOT_BEGIN_STRING));
 
 	OAK_ASSERT_EQ( "0-3", match(pattern("\\Afoo", ONIG_OPTION_SINGLELINE), buf));
 	OAK_ASSERT_EQ( "0-3", match(pattern("\\Afoo", ONIG_OPTION_SINGLELINE), buf, ONIG_OPTION_NOTBOL));
-	OAK_ASSERT_EQ("none", match(pattern("\\Afoo", ONIG_OPTION_SINGLELINE), buf, ONIG_OPTION_NOTBOS));
+	OAK_ASSERT_EQ("none", match(pattern("\\Afoo", ONIG_OPTION_SINGLELINE), buf, ONIG_OPTION_NOT_BEGIN_STRING));
 }
 
 void test_eol ()
@@ -57,9 +57,9 @@ void test_eol ()
 
 	OAK_ASSERT_EQ("12-15", match(pattern("bar$"), buf, ONIG_OPTION_BACKWARD));
 	OAK_ASSERT_EQ(  "4-7", match(pattern("bar$"), buf, ONIG_OPTION_BACKWARD|ONIG_OPTION_NOTEOL));
-	OAK_ASSERT_EQ("12-15", match(pattern("bar$"), buf, ONIG_OPTION_BACKWARD|ONIG_OPTION_NOTEOS));
+	OAK_ASSERT_EQ("12-15", match(pattern("bar$"), buf, ONIG_OPTION_BACKWARD|ONIG_OPTION_NOT_END_STRING));
 
 	OAK_ASSERT_EQ("12-15", match(pattern("bar\\z"), buf));
 	OAK_ASSERT_EQ("12-15", match(pattern("bar\\z"), buf, ONIG_OPTION_NOTEOL));
-	OAK_ASSERT_EQ( "none", match(pattern("bar\\z"), buf, ONIG_OPTION_NOTEOS));
+	OAK_ASSERT_EQ( "none", match(pattern("bar\\z"), buf, ONIG_OPTION_NOT_END_STRING));
 }

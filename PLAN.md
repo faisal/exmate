@@ -275,3 +275,10 @@ PR 15 (docs + cleanup)                [depends on all]
 
 - Migrate off AuthorizationExecuteWithPrivileges
 - Switch to GitHub tracking of plugins
+- Complete migration to full Big Sur style toolbars bars
+- Convert to normal split viewcontroller model
+- Add Big Sur style sidebar control button to toolbar
+- Convert to system tabs
+- Get rid of remaining deprecation warnings by dealing with XPC controller
+- Replace Oak with TextKit?
+

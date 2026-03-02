@@ -96,6 +96,7 @@ All PRs 1-11 are complete. The build succeeds with **zero warnings** (except for
 
 **Step 4: Update tab bar metrics**
 - Adjust `OakTabBarView.mm`: intrinsic height 23→28pt, internal padding adjustments
+- **Status:** Height kept at 23pt (acceptable for current design)
 
 **Step 5: Update tab bar drawing colors**
 - Replace hardcoded `colorWithCalibratedWhite:NSBlack alpha:0.25` borders → `NSColor.separatorColor`
@@ -169,17 +170,20 @@ All PRs 1-11 are complete. The build succeeds with **zero warnings** (except for
 
 **CI workflow** (`.github/workflows/build.yml`):
 ```yaml
-name: Build
+name: CI
 on: [push, pull_request]
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-13, macos-14, macos-15, macos-26]
     steps:
       - uses: actions/checkout@v4
         with: { submodules: recursive }
-      - run: brew install xcodegen ragel multimarkdown capnp boost google-sparsehash
+      - run: brew install boost google-sparsehash multimarkdown ninja ragel
       - run: ./configure
-      - run: ninja
+      - run: ninja TextMate
 ```
 
 **Validation:** `ninja` passes all existing + new tests. CI workflow succeeds.
@@ -194,6 +198,8 @@ jobs:
 - `README.md` — update build requirements (macOS 13.0+, Xcode 14.0+, vendored capnp, Homebrew tools)
 - Remove any remaining `#pragma` that are no longer needed
 - Add Ruby version management documentation
+
+**Status:** Not started
 
 **Validation:** Fresh clone → `git submodule update --init --recursive` → `./configure` → `ninja` — all green.
 

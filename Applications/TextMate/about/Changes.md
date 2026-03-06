@@ -2,7 +2,7 @@ Title: Release Notes
 
 # Changes
 
-## 2026-02-25 (v2.1-alpha)
+## 2026-02-25 (v2.1-dev)
 
 * Rebuilt with modern macOS SDK, including a number of changes to newer APIs
 * Raised minimum deployment target to macOS 13

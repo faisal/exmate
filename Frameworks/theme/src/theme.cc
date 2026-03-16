@@ -271,7 +271,7 @@ void theme_t::shared_styles_t::setup_styles ()
 	}
 
 	if(!_color_space)
-		_color_space = CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB);
+		_color_space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
 
 	// =======================================
 	// = Find “global” foreground/background =

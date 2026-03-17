@@ -101,7 +101,8 @@ OakRolloverButton* OakCreateCloseButton (NSString* accessibilityLabel)
 	if(self = [super initWithFrame:aRect])
 	{
 		_style = OakBackgroundFillViewStyleNone;
-		[self setWantsLayer:YES]; // required by NSVisualEffectBlendingModeWithinWindow
+		self.wantsLayer = YES;
+		self.layer.masksToBounds = YES;
 	}
 	return self;
 }

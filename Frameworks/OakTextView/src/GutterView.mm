@@ -121,9 +121,9 @@ struct data_source_t
 		auto fragment = [self.delegate lineFragmentForLine:to.line column:to.column];
 		CGFloat lastY = to.column == 0 && from.line != to.line ? fragment.firstY : fragment.lastY;
 
-		backgroundRects.push_back(CGRectMake(0, firstY+1, self.frame.size.width, lastY - firstY - 2));
-		borderRects.push_back(CGRectMake(0, firstY, self.frame.size.width, 1));
-		borderRects.push_back(CGRectMake(0, lastY-1, self.frame.size.width, 1));
+		backgroundRects.push_back(CGRectMake(0, firstY+1, self.bounds.size.width, lastY - firstY - 2));
+		borderRects.push_back(CGRectMake(0, firstY, self.bounds.size.width, 1));
+		borderRects.push_back(CGRectMake(0, lastY-1, self.bounds.size.width, 1));
 	}
 }
 
@@ -169,6 +169,11 @@ struct data_source_t
 - (BOOL)isFlipped
 {
 	return YES;
+}
+
++ (BOOL)isCompatibleWithResponsiveScrolling
+{
+	return NO;
 }
 
 - (BOOL)isOpaque
@@ -309,17 +314,17 @@ static void DrawText (std::string const& text, CGRect const& rect, CGFloat basel
 - (void)drawRect:(NSRect)aRect
 {
 	[self.backgroundColor set];
-	NSRectFill(NSIntersectionRect(aRect, self.frame));
+	NSRectFill(aRect);
 
 	[self setupSelectionRects];
 
 	[self.selectionBackgroundColor set];
 	for(auto const& rect : backgroundRects)
-		NSRectFillUsingOperation(NSIntersectionRect(rect, NSIntersectionRect(aRect, self.frame)), NSCompositingOperationSourceOver);
+		NSRectFillUsingOperation(NSIntersectionRect(rect, NSIntersectionRect(aRect, self.bounds)), NSCompositingOperationSourceOver);
 
 	[self.selectionBorderColor set];
 	for(auto const& rect : borderRects)
-		NSRectFillUsingOperation(NSIntersectionRect(rect, NSIntersectionRect(aRect, self.frame)), NSCompositingOperationSourceOver);
+		NSRectFillUsingOperation(NSIntersectionRect(rect, NSIntersectionRect(aRect, self.bounds)), NSCompositingOperationSourceOver);
 
 	if(!self.antiAlias)
 		CGContextSetShouldAntialias(NSGraphicsContext.currentContext.CGContext, false);
@@ -334,7 +339,7 @@ static void DrawText (std::string const& text, CGRect const& rect, CGFloat basel
 
 		BOOL selectedRow = NO;
 		for(auto const& rect : backgroundRects)
-			selectedRow = selectedRow || NSIntersectsRect(rect, NSMakeRect(0, record.firstY, CGRectGetWidth(self.frame), record.lastY - record.firstY));
+			selectedRow = selectedRow || NSIntersectsRect(rect, NSMakeRect(0, record.firstY, CGRectGetWidth(self.bounds), record.lastY - record.firstY));
 
 		for(auto const& dataSource : [self visibleColumnDataSources])
 		{

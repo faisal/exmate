@@ -78,6 +78,7 @@ static NSString* const kFoldingsColumnIdentifier  = @"foldings";
 		gutterScrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
 		gutterScrollView.accessibilityElement = NO;
 		gutterScrollView.borderType   = NSNoBorder;
+		gutterScrollView.drawsBackground = NO;
 		gutterScrollView.documentView = gutterView;
 
 		[gutterScrollView.contentView addConstraint:[NSLayoutConstraint constraintWithItem:gutterView attribute:NSLayoutAttributeLeft relatedBy:NSLayoutRelationEqual toItem:gutterScrollView.contentView attribute:NSLayoutAttributeLeft multiplier:1.0 constant:0.0]];
@@ -349,7 +350,6 @@ static NSString* const kFoldingsColumnIdentifier  = @"foldings";
 		gutterView.selectionIconHoverColor   = [NSColor colorWithCGColor:styles.selectionIconsHover];
 		gutterView.selectionIconPressedColor = [NSColor colorWithCGColor:styles.selectionIconsPressed];
 		gutterView.selectionBorderColor      = [NSColor colorWithCGColor:styles.selectionBorder];
-		gutterScrollView.backgroundColor     = gutterView.backgroundColor;
 		gutterDividerView.activeBackgroundColor = [NSColor colorWithCGColor:styles.divider];
 
 		[gutterView setNeedsDisplay:YES];

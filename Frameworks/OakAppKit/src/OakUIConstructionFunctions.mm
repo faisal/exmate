@@ -43,6 +43,24 @@ CGFloat OakScaledUIMetric (CGFloat metric)
 	return round(metric * OakUIFontScaleFactor());
 }
 
+// Draws base into a fresh image rather than copying it and changing the
+// size: the symbol-backed system images (NSImageNameAddTemplate and
+// friends) keep rendering at their own point size when only `size` changes.
+NSImage* OakScaledUIImage (NSImage* base)
+{
+	if(!base)
+		return nil;
+	CGFloat scale = OakUIFontScaleFactor();
+	NSSize size = NSMakeSize(base.size.width * scale, base.size.height * scale);
+	NSImage* res = [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect dstRect){
+		[base drawInRect:dstRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1 respectFlipped:YES hints:nil];
+		return YES;
+	}];
+	[res setTemplate:base.isTemplate];
+	res.accessibilityDescription = base.accessibilityDescription;
+	return res;
+}
+
 NSFont* OakStatusBarFont ()
 {
 	CGFloat size = [NSUserDefaults.standardUserDefaults integerForKey:@"statusBarFontSize"] ?: 12;

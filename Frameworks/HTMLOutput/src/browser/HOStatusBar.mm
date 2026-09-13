@@ -1,14 +1,12 @@
 #import "HOStatusBar.h"
+#import <OakAppKit/OakScaledImageButton.h>
 #import <OakAppKit/NSImage Additions.h>
 #import <OakAppKit/OakUIConstructionFunctions.h>
 
 static NSButton* OakCreateImageButton (NSImage* image)
 {
-	NSButton* res = [NSButton new];
-	[res setButtonType:NSButtonTypeMomentaryChange];
-	[res setBordered:NO];
-	[res setImage:image];
-	[res setImagePosition:NSImageOnly];
+	OakScaledImageButton* res = [OakScaledImageButton new];
+	res.baseImage = image;
 	return res;
 }
 
@@ -105,7 +103,7 @@ static NSTextField* OakCreateTextField ()
 		@"spinner":    _indeterminateProgress ? _spinner : _progressIndicator,
 	};
 
-	NSDictionary* metrics = @{ @"top": @(OakScaledUIMetric(4)), @"height": @(OakScaledUIMetric(15)), @"bottom": @(OakScaledUIMetric(5)) };
+	NSDictionary* metrics = @{ @"top": @(OakScaledUIMetric(4)), @"height": @(OakScaledUIMetric(15)), @"bottom": @(OakScaledUIMetric(5)), @"button": @(OakScaledUIMetric(22)) };
 
 	NSArray* layout = @[
 		@"H:|[topDivider]|", @"V:|[topDivider(==1)]-(top)-[divider(==height)]-(bottom)-|", @"V:[status]-(bottom)-|"
@@ -113,7 +111,7 @@ static NSTextField* OakCreateTextField ()
 
 	for(NSString* str in layout)
 		[_layoutConstraints addObjectsFromArray:[NSLayoutConstraint constraintsWithVisualFormat:str options:0 metrics:metrics views:views]];
-	[_layoutConstraints addObjectsFromArray:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-(3)-[back(==22)]-(2)-[forward(==back)]-(2)-[divider(==1)]" options:NSLayoutFormatAlignAllCenterY metrics:nil views:views]];
+	[_layoutConstraints addObjectsFromArray:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-(3)-[back(==button)]-(2)-[forward(==back)]-(2)-[divider(==1)]" options:NSLayoutFormatAlignAllCenterY metrics:metrics views:views]];
 
 	if(!_indeterminateProgress)
 	{

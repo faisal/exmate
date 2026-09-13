@@ -66,6 +66,9 @@ static NSButton* OakCreateImageToggleButton (NSImage* image, NSString* accessibi
 @property (nonatomic) NSView* dividerFour;
 @property (nonatomic) NSView* dividerFive;
 @property (nonatomic) NSArray<NSLayoutConstraint*>* metricConstraints;
+@property (nonatomic) NSImage* recordMacroBaseImage;
+@property (nonatomic) NSImage* bundleItemsBaseImage;
+@property (nonatomic) NSView* wrappedBundleItemsPopUpButton;
 @end
 
 @implementation OTVStatusBar
@@ -90,6 +93,7 @@ static NSButton* OakCreateImageToggleButton (NSImage* image, NSString* accessibi
 		self.tabSizePopUp.pullsDown       = YES;
 		self.bundleItemsPopUp             = OakCreateStatusBarPopUpButton(nil, @"Bundle Item");
 		self.symbolPopUp                  = OakCreateStatusBarPopUpButton(@"", @"Symbol");
+		self.recordMacroBaseImage         = recordMacroImage;
 		self.macroRecordingButton         = OakCreateImageToggleButton(recordMacroImage, @"Record a macro");
 		self.macroRecordingButton.action  = @selector(toggleMacroRecording:);
 		self.macroRecordingButton.toolTip = @"Click to start recording a macro";
@@ -101,11 +105,11 @@ static NSButton* OakCreateImageToggleButton (NSImage* image, NSString* accessibi
 		// ===========================
 
 		NSMenuItem* item = [[NSMenuItem alloc] initWithTitle:@"" action:NULL keyEquivalent:@""];
-		item.image = [NSImage imageNamed:NSImageNameActionTemplate];
+		item.image = self.bundleItemsBaseImage = [NSImage imageNamed:NSImageNameActionTemplate];
 		[[self.bundleItemsPopUp cell] setUsesItemFromMenu:NO];
 		[[self.bundleItemsPopUp cell] setMenuItem:item];
 
-		NSView* wrappedBundleItemsPopUpButton = [NSView new];
+		NSView* wrappedBundleItemsPopUpButton = self.wrappedBundleItemsPopUpButton = [NSView new];
 		OakAddAutoLayoutViewsToSuperview(@[ self.bundleItemsPopUp ], wrappedBundleItemsPopUpButton);
 		[wrappedBundleItemsPopUpButton addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:[popup]|" options:0 metrics:nil views:@{ @"popup": self.bundleItemsPopUp }]];
 		[wrappedBundleItemsPopUpButton addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[popup]|" options:0 metrics:nil views:@{ @"popup": self.bundleItemsPopUp }]];
@@ -146,7 +150,6 @@ static NSButton* OakCreateImageToggleButton (NSImage* image, NSString* accessibi
 		[self.symbolPopUp setContentHuggingPriority:NSLayoutPriorityDefaultLow-1 forOrientation:NSLayoutConstraintOrientationHorizontal];
 		[self.symbolPopUp setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow-1 forOrientation:NSLayoutConstraintOrientationHorizontal];
 
-		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-10-[line]-[selection(>=50,<=225)]-8-[dividerOne(==1)]-2-[grammar(>=125@400,>=50,<=225)]-5-[dividerTwo(==1)]-2-[tabSize]-4-[dividerThree(==1)]-5-[items(==31)]-4-[dividerFour(==1)]-2-[symbol(>=125@450,>=50)]-5-[dividerFive(==1)]-6-[recording]-7-|" options:0 metrics:nil views:views]];
 		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[topDivider]|" options:0 metrics:nil views:views]];
 		[self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[topDivider(==1)]" options:0 metrics:nil views:views]];
 
@@ -176,6 +179,9 @@ static NSButton* OakCreateImageToggleButton (NSImage* image, NSString* accessibi
 		NSFontFeatureSettingsAttribute: @[ @{ NSFontFeatureTypeIdentifierKey: @(kNumberSpacingType), NSFontFeatureSelectorIdentifierKey: @(kMonospacedNumbersSelector) } ]
 	}];
 	self.selectionField.font = [NSFont fontWithDescriptor:descriptor size:0];
+
+	self.macroRecordingButton.image = OakScaledUIImage(_recordMacroBaseImage);
+	[[self.bundleItemsPopUp cell] menuItem].image = OakScaledUIImage(_bundleItemsBaseImage);
 }
 
 // The dividers set the bar's height: 15 pt tall with 5 pt above and below
@@ -185,15 +191,25 @@ static NSButton* OakCreateImageToggleButton (NSImage* image, NSString* accessibi
 	if(_metricConstraints)
 		[self removeConstraints:_metricConstraints];
 
-	NSDictionary* metrics = @{ @"margin": @(OakScaledUIMetric(5)), @"height": @(OakScaledUIMetric(15)) };
+	NSDictionary* metrics = @{ @"margin": @(OakScaledUIMetric(5)), @"height": @(OakScaledUIMetric(15)), @"items": @(OakScaledUIMetric(31)) };
 	NSDictionary* views = @{
+		@"line":         _lineLabel,
+		@"selection":    _selectionField,
 		@"dividerOne":   _dividerOne,
+		@"grammar":      _grammarPopUp,
 		@"dividerTwo":   _dividerTwo,
+		@"tabSize":      _tabSizePopUp,
 		@"dividerThree": _dividerThree,
+		@"items":        _wrappedBundleItemsPopUpButton,
 		@"dividerFour":  _dividerFour,
+		@"symbol":       _symbolPopUp,
 		@"dividerFive":  _dividerFive,
+		@"recording":    _macroRecordingButton,
 	};
-	_metricConstraints = [NSLayoutConstraint constraintsWithVisualFormat:@"V:|-(margin)-[dividerOne(==height,==dividerTwo,==dividerThree,==dividerFour,==dividerFive)]-(margin)-|" options:0 metrics:metrics views:views];
+	NSMutableArray* constraints = [NSMutableArray array];
+	[constraints addObjectsFromArray:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-10-[line]-[selection(>=50,<=225)]-8-[dividerOne(==1)]-2-[grammar(>=125@400,>=50,<=225)]-5-[dividerTwo(==1)]-2-[tabSize]-4-[dividerThree(==1)]-5-[items(==items)]-4-[dividerFour(==1)]-2-[symbol(>=125@450,>=50)]-5-[dividerFive(==1)]-6-[recording]-7-|" options:0 metrics:metrics views:views]];
+	[constraints addObjectsFromArray:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-(margin)-[dividerOne(==height,==dividerTwo,==dividerThree,==dividerFour,==dividerFive)]-(margin)-|" options:0 metrics:metrics views:views]];
+	_metricConstraints = constraints;
 	[self addConstraints:_metricConstraints];
 }
 

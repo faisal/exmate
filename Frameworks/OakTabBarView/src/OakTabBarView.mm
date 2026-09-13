@@ -750,8 +750,10 @@ static void* kOakTabViewSelectedContext  = &kOakTabViewSelectedContext;
 	[_backgroundView updateFont];
 	for(OakTabItem* tabItem in _tabItems)
 		[tabItem.tabView updateFont];
+	_createNewTabButton.image     = OakScaledUIImage([NSImage imageNamed:NSImageNameAddTemplate]);
+	_createNewTabButton.frameSize = NSMakeSize(OakScaledUIMetric(26), OakScaledUIMetric(20));
 	[self invalidateIntrinsicContentSize];
-	self.needsLayout = YES;
+	[self updateToLayout:[self makeLayout]];
 }
 
 - (void)dealloc
@@ -763,9 +765,9 @@ static void* kOakTabViewSelectedContext  = &kOakTabViewSelectedContext;
 {
 	if(!_createNewTabButton)
 	{
-		_createNewTabButton = [[NSButton alloc] initWithFrame:NSMakeRect(0, 2, 26, 20)];
+		_createNewTabButton = [[NSButton alloc] initWithFrame:NSMakeRect(0, 2, OakScaledUIMetric(26), OakScaledUIMetric(20))];
 		_createNewTabButton.accessibilityLabel = @"Create new tab";
-		_createNewTabButton.image      = [NSImage imageNamed:NSImageNameAddTemplate];
+		_createNewTabButton.image      = OakScaledUIImage([NSImage imageNamed:NSImageNameAddTemplate]);
 		_createNewTabButton.bordered   = NO;
 		_createNewTabButton.buttonType = NSButtonTypeMomentaryChange;
 		_createNewTabButton.toolTip    = @"Create new tab";

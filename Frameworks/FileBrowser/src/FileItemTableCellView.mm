@@ -73,6 +73,8 @@
 static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 
 @interface FileItemTableCellView () <NSTextFieldDelegate>
+@property (nonatomic) NSLayoutConstraint* iconWidthConstraint;
+@property (nonatomic) NSLayoutConstraint* iconHeightConstraint;
 @property (nonatomic) FileItemFinderTagsView* finderTagsView;
 @property (nonatomic) TMFileReference* fileReference;
 @end
@@ -89,8 +91,9 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 		_openButton.imagePosition         = NSImageOnly;
 		_openButton.imageScaling          = NSImageScaleProportionallyUpOrDown;
 
-		[_openButton.widthAnchor  constraintEqualToConstant:16].active = YES;
-		[_openButton.heightAnchor constraintEqualToConstant:16].active = YES;
+		_iconWidthConstraint  = [_openButton.widthAnchor  constraintEqualToConstant:OakScaledUIMetric(16)];
+		_iconHeightConstraint = [_openButton.heightAnchor constraintEqualToConstant:OakScaledUIMetric(16)];
+		_iconWidthConstraint.active = _iconHeightConstraint.active = YES;
 
 		NSTextField* textField = OakCreateLabel(@"", OakScaledUIFont([NSFont controlContentFontOfSize:0]));
 		textField.cell = [[FileItemSelectBasenameCell alloc] initTextCell:@""];
@@ -136,6 +139,7 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 - (void)uiFontScaleFactorDidChange:(NSNotification*)aNotification
 {
 	self.textField.font = OakScaledUIFont([NSFont controlContentFontOfSize:0]);
+	_iconWidthConstraint.constant = _iconHeightConstraint.constant = OakScaledUIMetric(16);
 }
 
 - (void)setBackgroundStyle:(NSBackgroundStyle)newBackgroundStyle

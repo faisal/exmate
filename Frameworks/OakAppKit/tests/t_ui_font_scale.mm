@@ -57,6 +57,23 @@ void test_scale_is_clamped ()
 	inject(nil);
 }
 
+void test_scaled_image_is_a_scaled_copy ()
+{
+	inject(@2);
+	NSImage* base = [NSImage imageWithSize:NSMakeSize(14, 10) flipped:NO drawingHandler:^BOOL(NSRect){ return YES; }];
+	[base setTemplate:YES];
+	base.accessibilityDescription = @"Go Back";
+	NSImage* scaled = OakScaledUIImage(base);
+	OAK_ASSERT(scaled != base);
+	OAK_ASSERT_EQ(scaled.size.width, 28.0);
+	OAK_ASSERT_EQ(scaled.size.height, 20.0);
+	OAK_ASSERT_EQ(base.size.width, 14.0); // untouched
+	OAK_ASSERT(scaled.isTemplate);
+	OAK_ASSERT([scaled.accessibilityDescription isEqualToString:@"Go Back"]);
+	OAK_ASSERT(OakScaledUIImage(nil) == nil);
+	inject(nil);
+}
+
 void test_setter_persists_and_notifies ()
 {
 	inject(nil);

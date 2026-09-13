@@ -115,7 +115,9 @@ void test_window_follows_scale_both_ways ()
 {
 	inject(nil);
 	[NSUserDefaults.standardUserDefaults removeObjectForKey:kUserDefaultsUIFontScaleFactorKey];
-	NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(100, 600, 300, 150) styleMask:(NSWindowStyleMaskTitled|NSWindowStyleMaskResizable) backing:NSBackingStoreBuffered defer:NO];
+	// Near the bottom of the screen so the doubled window still fits below the top edge on any display (CI runners are small).
+	NSRect visible = NSScreen.mainScreen.visibleFrame;
+	NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(NSMinX(visible) + 100, NSMinY(visible) + 40, 300, 150) styleMask:(NSWindowStyleMaskTitled|NSWindowStyleMaskResizable) backing:NSBackingStoreBuffered defer:NO];
 	OakSetScaledWindowContentView(window, content());
 	[window layoutIfNeeded];
 	NSRect base = [window contentRectForFrameRect:window.frame];

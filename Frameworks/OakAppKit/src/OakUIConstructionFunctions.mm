@@ -61,6 +61,17 @@ NSImage* OakScaledUIImage (NSImage* base)
 	return res;
 }
 
+CGFloat OakUIScaleThatFits (NSSize designSize, NSSize availableSize, CGFloat scale)
+{
+	if(scale <= 1)
+		return scale;
+	if(designSize.width > 0)
+		scale = std::min(scale, availableSize.width / designSize.width);
+	if(designSize.height > 0)
+		scale = std::min(scale, availableSize.height / designSize.height);
+	return std::max<CGFloat>(scale, 1);
+}
+
 NSFont* OakStatusBarFont ()
 {
 	CGFloat size = [NSUserDefaults.standardUserDefaults integerForKey:@"statusBarFontSize"] ?: 12;

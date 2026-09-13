@@ -28,6 +28,7 @@ void OakSetUIFontScaleFactor (CGFloat scale);
 NSFont* OakScaledUIFont (NSFont* base);
 CGFloat OakScaledUIMetric (CGFloat metric);
 NSImage* OakScaledUIImage (NSImage* base); // a copy of base at base.size × scale; base (often a shared named image) is left alone
+CGFloat OakUIScaleThatFits (NSSize designSize, NSSize availableSize, CGFloat scale); // scale, reduced (never below 1) so designSize × result fits availableSize
 
 NSFont* OakStatusBarFont ();
 NSFont* OakControlFont ();

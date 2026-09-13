@@ -73,6 +73,8 @@
 static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 
 @interface FileItemTableCellView () <NSTextFieldDelegate>
+@property (nonatomic) NSLayoutConstraint* iconWidthConstraint;
+@property (nonatomic) NSLayoutConstraint* iconHeightConstraint;
 @property (nonatomic) FileItemFinderTagsView* finderTagsView;
 @property (nonatomic) TMFileReference* fileReference;
 @end
@@ -89,10 +91,11 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 		_openButton.imagePosition         = NSImageOnly;
 		_openButton.imageScaling          = NSImageScaleProportionallyUpOrDown;
 
-		[_openButton.widthAnchor  constraintEqualToConstant:16].active = YES;
-		[_openButton.heightAnchor constraintEqualToConstant:16].active = YES;
+		_iconWidthConstraint  = [_openButton.widthAnchor  constraintEqualToConstant:OakScaledUIMetric(16)];
+		_iconHeightConstraint = [_openButton.heightAnchor constraintEqualToConstant:OakScaledUIMetric(16)];
+		_iconWidthConstraint.active = _iconHeightConstraint.active = YES;
 
-		NSTextField* textField = OakCreateLabel(@"", [NSFont controlContentFontOfSize:0]);
+		NSTextField* textField = OakCreateLabel(@"", OakScaledUIFont([NSFont controlContentFontOfSize:0]));
 		textField.cell = [[FileItemSelectBasenameCell alloc] initTextCell:@""];
 		[textField.cell setWraps:NO];
 		[textField.cell setLineBreakMode:NSLineBreakByTruncatingMiddle];
@@ -128,8 +131,15 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 		self.textField = textField;
 
 		[self addObserver:self forKeyPath:@"objectValue.URL" options:NSKeyValueObservingOptionNew context:kObjectValueURLObserverContext];
+		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(uiFontScaleFactorDidChange:) name:OakUIFontScaleFactorDidChangeNotification object:nil];
 	}
 	return self;
+}
+
+- (void)uiFontScaleFactorDidChange:(NSNotification*)aNotification
+{
+	self.textField.font = OakScaledUIFont([NSFont controlContentFontOfSize:0]);
+	_iconWidthConstraint.constant = _iconHeightConstraint.constant = OakScaledUIMetric(16);
 }
 
 - (void)setBackgroundStyle:(NSBackgroundStyle)newBackgroundStyle
@@ -141,6 +151,7 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 - (void)dealloc
 {
 	[self removeObserver:self forKeyPath:@"objectValue.URL" context:kObjectValueURLObserverContext];
+	[NSNotificationCenter.defaultCenter removeObserver:self];
 
 	[_openButton unbind:NSImageBinding];
 	[self.textField unbind:NSValueBinding];

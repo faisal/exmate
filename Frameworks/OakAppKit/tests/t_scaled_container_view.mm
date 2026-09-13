@@ -115,9 +115,12 @@ void test_window_follows_scale_both_ways ()
 {
 	inject(nil);
 	[NSUserDefaults.standardUserDefaults removeObjectForKey:kUserDefaultsUIFontScaleFactorKey];
-	// Near the bottom of the screen so the doubled window still fits below the top edge on any display (CI runners are small).
+	// Zooming keeps the top edge, so the window needs room below it for the
+	// doubled height and must not start above the screen top. 350 pt up from
+	// the bottom of the visible frame satisfies both on any display down to
+	// about 550 pt tall (CI runners are small).
 	NSRect visible = NSScreen.mainScreen.visibleFrame;
-	NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(NSMinX(visible) + 100, NSMinY(visible) + 40, 300, 150) styleMask:(NSWindowStyleMaskTitled|NSWindowStyleMaskResizable) backing:NSBackingStoreBuffered defer:NO];
+	NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(NSMinX(visible) + 100, NSMinY(visible) + 350, 300, 150) styleMask:(NSWindowStyleMaskTitled|NSWindowStyleMaskResizable) backing:NSBackingStoreBuffered defer:NO];
 	OakSetScaledWindowContentView(window, content());
 	[window layoutIfNeeded];
 	NSRect base = [window contentRectForFrameRect:window.frame];

@@ -91,8 +91,14 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 		_openButton.imagePosition         = NSImageOnly;
 		_openButton.imageScaling          = NSImageScaleProportionallyUpOrDown;
 
+		// Just below required: the row height (set by the view controller) and
+		// the icon size (set here) both follow the UI scale but are updated by
+		// different observers, and a required icon height taller than a row
+		// that has already shrunk is unsatisfiable, which this app treats as
+		// fatal. At rest the row is always taller than the icon.
 		_iconWidthConstraint  = [_openButton.widthAnchor  constraintEqualToConstant:OakScaledUIMetric(16)];
 		_iconHeightConstraint = [_openButton.heightAnchor constraintEqualToConstant:OakScaledUIMetric(16)];
+		_iconWidthConstraint.priority = _iconHeightConstraint.priority = NSLayoutPriorityRequired - 1;
 		_iconWidthConstraint.active = _iconHeightConstraint.active = YES;
 
 		NSTextField* textField = OakCreateLabel(@"", OakScaledUIFont([NSFont controlContentFontOfSize:0]));

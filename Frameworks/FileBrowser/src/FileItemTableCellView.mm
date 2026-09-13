@@ -92,7 +92,7 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 		[_openButton.widthAnchor  constraintEqualToConstant:16].active = YES;
 		[_openButton.heightAnchor constraintEqualToConstant:16].active = YES;
 
-		NSTextField* textField = OakCreateLabel(@"", [NSFont controlContentFontOfSize:0]);
+		NSTextField* textField = OakCreateLabel(@"", OakScaledUIFont([NSFont controlContentFontOfSize:0]));
 		textField.cell = [[FileItemSelectBasenameCell alloc] initTextCell:@""];
 		[textField.cell setWraps:NO];
 		[textField.cell setLineBreakMode:NSLineBreakByTruncatingMiddle];
@@ -128,8 +128,14 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 		self.textField = textField;
 
 		[self addObserver:self forKeyPath:@"objectValue.URL" options:NSKeyValueObservingOptionNew context:kObjectValueURLObserverContext];
+		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(uiFontScaleFactorDidChange:) name:OakUIFontScaleFactorDidChangeNotification object:nil];
 	}
 	return self;
+}
+
+- (void)uiFontScaleFactorDidChange:(NSNotification*)aNotification
+{
+	self.textField.font = OakScaledUIFont([NSFont controlContentFontOfSize:0]);
 }
 
 - (void)setBackgroundStyle:(NSBackgroundStyle)newBackgroundStyle
@@ -141,6 +147,7 @@ static void* kObjectValueURLObserverContext = &kObjectValueURLObserverContext;
 - (void)dealloc
 {
 	[self removeObserver:self forKeyPath:@"objectValue.URL" context:kObjectValueURLObserverContext];
+	[NSNotificationCenter.defaultCenter removeObserver:self];
 
 	[_openButton unbind:NSImageBinding];
 	[self.textField unbind:NSValueBinding];

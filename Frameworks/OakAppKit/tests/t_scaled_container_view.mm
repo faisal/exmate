@@ -366,3 +366,54 @@ void test_titlebar_container_follows_the_window_container ()
 	OAK_ASSERT_EQ(accessoryScale, ownerScale);
 	OAK_ASSERT_EQ(accessoryHeight, ceil(50 * ownerScale));
 }
+
+// A borderless window has no title bar to hold accessories, and asking it
+// for them raises. The pasteboard selector lives in one.
+void test_container_in_borderless_window ()
+{
+	inject(@2);
+	NSRect visible = NSScreen.mainScreen.visibleFrame;
+	NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(NSMinX(visible) + 100, NSMinY(visible) + 350, 300, 150) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+	OakSetScaledWindowContentView(window, content()); // raised NSInternalInconsistencyException before the guard
+	[window layoutIfNeeded];
+	NSRect rect = [window contentRectForFrameRect:window.frame];
+	OAK_ASSERT_EQ(NSWidth(rect), 600.0);
+	OAK_ASSERT_EQ(NSHeight(rect), 300.0);
+	[window close];
+	inject(nil);
+}
+
+// A xib-built content view lays its subviews out with autoresizing masks
+// and has no constraints, so its fitting size says nothing: its own frame
+// is its design size. A window restored smaller than that (Jump to Line
+// had a 191 × 71 saved frame for a 269 × 102 panel) must not squeeze it,
+// which collapses the autoresizing subviews; the window grows instead.
+void test_autoresizing_content_keeps_its_design_size ()
+{
+	inject(nil);
+	[NSUserDefaults.standardUserDefaults removeObjectForKey:kUserDefaultsUIFontScaleFactorKey];
+	NSRect visible = NSScreen.mainScreen.visibleFrame;
+	NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(NSMinX(visible) + 100, NSMinY(visible) + 350, 191, 71) styleMask:(NSWindowStyleMaskTitled|NSWindowStyleMaskClosable) backing:NSBackingStoreBuffered defer:NO];
+	NSView* xibLike = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 269, 102)];
+	NSButton* button = [[NSButton alloc] initWithFrame:NSMakeRect(150, 12, 105, 32)];
+	button.autoresizingMask = NSViewMinXMargin; // sticks to the right edge, as in the xib
+	[xibLike addSubview:button];
+
+	OakSetScaledWindowContentView(window, xibLike);
+	[window layoutIfNeeded];
+	OAK_ASSERT_EQ(NSWidth(xibLike.frame), 269.0);
+	OAK_ASSERT_EQ(NSHeight(xibLike.frame), 102.0);
+	OAK_ASSERT_EQ(NSMinX(button.frame), 150.0); // never squeezed, so never moved
+	NSRect content = [window contentRectForFrameRect:window.frame];
+	OAK_ASSERT_EQ(NSWidth(content), 269.0);  // the window grew to the design size
+	OAK_ASSERT_EQ(NSHeight(content), 102.0);
+
+	OakSetUIFontScaleFactor(2);
+	[window layoutIfNeeded];
+	content = [window contentRectForFrameRect:window.frame];
+	OAK_ASSERT_EQ(NSWidth(content), 538.0);
+	OAK_ASSERT_EQ(NSWidth(xibLike.frame), 269.0);
+	OAK_ASSERT_EQ(NSMinX(button.frame), 150.0);
+	OakSetUIFontScaleFactor(1);
+	[window close];
+}

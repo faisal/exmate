@@ -198,7 +198,8 @@ static OakScaledContainerView* OakScaledWindowContentContainer (NSWindow* window
 	CGFloat scale = self.effectiveScale;
 	_appliedScale = scale;
 	[self saveAppliedScale];
-	if(NSWidth(self.frame) > 0 && NSHeight(self.frame) > 0)
+	// Each side that has a size is scaled: an empty content (a transition view with no subview yet) has a width but no height, and what it holds next is sized through the bounds.
+	if(NSWidth(self.frame) > 0 || NSHeight(self.frame) > 0)
 		[self setBoundsSize:NSMakeSize(NSWidth(self.frame) / scale, NSHeight(self.frame) / scale)];
 	[self placeContentView];
 }
@@ -262,4 +263,14 @@ void OakSetScaledWindowContentView (NSWindow* window, NSView* contentView)
 		frame.origin.y = NSMaxY(window.frame) - NSHeight(frame); // keep the top-left corner
 		[window setFrame:frame display:NO];
 	}
+}
+
+CGFloat OakScaledContainerScaleForView (NSView* view)
+{
+	for(NSView* candidate = view; candidate; candidate = candidate.superview)
+	{
+		if([candidate isKindOfClass:[OakScaledContainerView class]])
+			return ((OakScaledContainerView*)candidate).effectiveScale;
+	}
+	return 1;
 }

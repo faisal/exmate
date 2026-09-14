@@ -16,7 +16,9 @@ static CGFloat OakClampUIFontScaleFactor (CGFloat scale)
 CGFloat OakUIFontScaleFactor ()
 {
 	id value = [NSUserDefaults.standardUserDefaults objectForKey:kUserDefaultsUIFontScaleFactorKey];
-	if(![value isKindOfClass:[NSNumber class]] || [value doubleValue] <= 0)
+	if(![value isKindOfClass:[NSNumber class]] && ![value isKindOfClass:[NSString class]]) // `defaults write` and launch arguments store the number as a string
+		return 1;
+	if([value doubleValue] <= 0)
 		return 1;
 	return OakClampUIFontScaleFactor([value doubleValue]);
 }

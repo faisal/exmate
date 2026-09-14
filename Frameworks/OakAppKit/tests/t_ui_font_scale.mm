@@ -149,3 +149,15 @@ void test_status_bar_base_font_is_unscaled ()
 	OAK_ASSERT([OakStatusBarFont().familyName isEqualToString:OakStatusBarBaseFont().familyName]);
 	inject(nil);
 }
+
+// `defaults write com.macromates.TextMate uiFontScaleFactor 1.5` stores the
+// string "1.5" (so does a -uiFontScaleFactor 1.5 launch argument), which must
+// count like the number.
+void test_scale_from_a_string_value ()
+{
+	inject(@"1.5");
+	OAK_ASSERT_EQ(OakUIFontScaleFactor(), 1.5);
+	inject(@"abc");
+	OAK_ASSERT_EQ(OakUIFontScaleFactor(), 1.0);
+	inject(nil);
+}

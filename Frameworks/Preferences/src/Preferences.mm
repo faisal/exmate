@@ -19,13 +19,17 @@ static NSString* const kMASPreferencesSelectedViewKey = @"MASPreferences Selecte
 
 @interface PreferencesViewController : OakTransitionViewController
 @property (nonatomic) NSString* selectedViewIdentifier;
+@property (nonatomic) NSMutableDictionary<NSString*, NSValue*>* minimumSizes; // each pane’s fitting size, read before it has ever been in a switch
 @end
 
 @implementation PreferencesViewController
 - (instancetype)initWithNibName:(NSNibName)nibNameOrNil bundle:(NSBundle*)nibBundleOrNil
 {
 	if(self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil])
+	{
+		_minimumSizes = [NSMutableDictionary dictionary];
 		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(uiFontScaleFactorDidChange:) name:OakUIFontScaleFactorDidChangeNotification object:nil];
+	}
 	return self;
 }
 
@@ -34,14 +38,28 @@ static NSString* const kMASPreferencesSelectedViewKey = @"MASPreferences Selecte
 	[NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
+// A pane’s fitting size is what its own constraints allow at least, but only
+// while the pane is not in a switch: OakTransitionViewController holds each
+// pane at its frame with size constraints of its own until the switch’s
+// animation completes, and a pane zoomed to the screen would report that.
+// So it is read once, before the pane’s first switch.
+- (NSSize)minimumSizeForViewController:(NSViewController*)viewController
+{
+	NSValue* cached = _minimumSizes[viewController.identifier];
+	if(!cached)
+		_minimumSizes[viewController.identifier] = cached = [NSValue valueWithSize:viewController.view.fittingSize];
+	return cached.sizeValue;
+}
+
 // The panes are inside a scaled container, so their constraints no longer
 // reach the window: the window is resizable only for a pane that says it can
-// grow, and never below the pane’s scaled fitting size.
-- (void)updateWindowSizingForViewController:(NSViewController <PreferencesPaneProtocol>*)viewController minimum:(NSSize)fitting
+// grow, and never below the pane’s scaled minimum.
+- (void)updateWindowSizingForViewController:(NSViewController <PreferencesPaneProtocol>*)viewController
 {
 	NSWindow* window = self.view.window;
 	if(!window || !viewController)
 		return;
+	NSSize fitting = [self minimumSizeForViewController:viewController];
 
 	BOOL resizable = [viewController respondsToSelector:@selector(isResizable)] && viewController.isResizable;
 	window.styleMask = resizable ? (window.styleMask | NSWindowStyleMaskResizable) : (window.styleMask & ~NSWindowStyleMaskResizable);
@@ -52,8 +70,7 @@ static NSString* const kMASPreferencesSelectedViewKey = @"MASPreferences Selecte
 
 - (void)uiFontScaleFactorDidChange:(NSNotification*)aNotification
 {
-	NSViewController <PreferencesPaneProtocol>* viewController = [self viewControllerForIdentifier:_selectedViewIdentifier];
-	[self updateWindowSizingForViewController:viewController minimum:viewController.view.fittingSize];
+	[self updateWindowSizingForViewController:[self viewControllerForIdentifier:_selectedViewIdentifier]];
 }
 
 - (void)viewWillAppear
@@ -78,14 +95,13 @@ static NSString* const kMASPreferencesSelectedViewKey = @"MASPreferences Selecte
 	self.view.window.toolbar.selectedItemIdentifier = viewIdentifier;
 	[NSUserDefaults.standardUserDefaults setObject:_selectedViewIdentifier forKey:kMASPreferencesSelectedViewKey];
 
-	NSViewController* newViewController = [self viewControllerForIdentifier:viewIdentifier];
+	NSViewController <PreferencesPaneProtocol>* newViewController = [self viewControllerForIdentifier:viewIdentifier];
 	self.title = newViewController.title ?: @"Preferences";
 
-	NSView* newView = newViewController.view;
-	NSSize minimum  = newView.fittingSize; // before the switch: while it animates the pane is held at its frame by size constraints of its own, which the fitting size would report
+	[self minimumSizeForViewController:newViewController]; // before its first switch
 	self.view.window.contentMinSize = NSZeroSize; // the new pane may be smaller than the old minimum
-	self.subview = newView;
-	[self updateWindowSizingForViewController:newViewController minimum:minimum];
+	self.subview = newViewController.view;
+	[self updateWindowSizingForViewController:newViewController];
 
 	BOOL setNewFirstResponder = self.view.window.firstResponder == self.view.window;
 	[self.view.window recalculateKeyViewLoop];

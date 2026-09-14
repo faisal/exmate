@@ -1,13 +1,14 @@
 #import <Preferences/Preferences.h>
 #import <settings/settings.h>
 #import <test/jail.h>
+#import <objc/message.h>
 
 // Selects a pane the way a toolbar item or the Show Tab menu does.
 static void selectPane (Preferences* preferences, NSString* identifier)
 {
 	NSMenuItem* item = [[NSMenuItem alloc] initWithTitle:identifier action:NULL keyEquivalent:@""];
 	item.representedObject = identifier;
-	[preferences performSelector:NSSelectorFromString(@"takeSelectedViewControllerIdentifierFrom:") withObject:item];
+	((void(*)(id, SEL, id))objc_msgSend)(preferences, NSSelectorFromString(@"takeSelectedViewControllerIdentifierFrom:"), item);
 }
 
 // The window used to take its size limits from the pane’s own constraints:
@@ -43,7 +44,9 @@ void test_window_is_resizable_only_for_panes_that_can_grow ()
 	// or the window could never be shrunk again.
 	// On screen the switch animates and finishes later; the transition
 	// controller holds each pane at its frame with size constraints until then,
-	// which a fitting size taken in between would report.
+	// which a fitting size taken in between would report. The run loop may not
+	// get to the completion at all here (it did not on CI), as with fast
+	// switching in the app.
 	NSSize minimum = window.contentMinSize;
 	[window orderFront:nil];
 	[window setContentSize:NSMakeSize(1400, 1200)];

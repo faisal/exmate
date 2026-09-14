@@ -7,6 +7,8 @@
 #import "TerminalPreferences.h"
 #import "Keys.h"
 #import <OakAppKit/OakTransitionViewController.h>
+#import <OakAppKit/OakScaledContainerView.h>
+#import <OakAppKit/OakUIConstructionFunctions.h>
 
 static NSString* const kMASPreferencesFrameTopLeftKey = @"MASPreferences Frame Top Left";
 static NSString* const kMASPreferencesSelectedViewKey = @"MASPreferences Selected Identifier View";
@@ -20,6 +22,40 @@ static NSString* const kMASPreferencesSelectedViewKey = @"MASPreferences Selecte
 @end
 
 @implementation PreferencesViewController
+- (instancetype)initWithNibName:(NSNibName)nibNameOrNil bundle:(NSBundle*)nibBundleOrNil
+{
+	if(self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil])
+		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(uiFontScaleFactorDidChange:) name:OakUIFontScaleFactorDidChangeNotification object:nil];
+	return self;
+}
+
+- (void)dealloc
+{
+	[NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+// The panes are inside a scaled container, so their constraints no longer
+// reach the window: the window is resizable only for a pane that says it can
+// grow, and never below the pane’s scaled fitting size.
+- (void)updateWindowSizingForViewController:(NSViewController <PreferencesPaneProtocol>*)viewController minimum:(NSSize)fitting
+{
+	NSWindow* window = self.view.window;
+	if(!window || !viewController)
+		return;
+
+	BOOL resizable = [viewController respondsToSelector:@selector(isResizable)] && viewController.isResizable;
+	window.styleMask = resizable ? (window.styleMask | NSWindowStyleMaskResizable) : (window.styleMask & ~NSWindowStyleMaskResizable);
+
+	CGFloat scale = OakScaledContainerScaleForView(self.view);
+	window.contentMinSize = NSMakeSize(ceil(fitting.width * scale), ceil(fitting.height * scale));
+}
+
+- (void)uiFontScaleFactorDidChange:(NSNotification*)aNotification
+{
+	NSViewController <PreferencesPaneProtocol>* viewController = [self viewControllerForIdentifier:_selectedViewIdentifier];
+	[self updateWindowSizingForViewController:viewController minimum:viewController.view.fittingSize];
+}
+
 - (void)viewWillAppear
 {
 	NSString* viewIdentifier = [NSUserDefaults.standardUserDefaults stringForKey:kMASPreferencesSelectedViewKey];
@@ -45,7 +81,11 @@ static NSString* const kMASPreferencesSelectedViewKey = @"MASPreferences Selecte
 	NSViewController* newViewController = [self viewControllerForIdentifier:viewIdentifier];
 	self.title = newViewController.title ?: @"Preferences";
 
-	self.subview = newViewController.view;
+	NSView* newView = newViewController.view;
+	NSSize minimum  = newView.fittingSize; // before the switch: while it animates the pane is held at its frame by size constraints of its own, which the fitting size would report
+	self.view.window.contentMinSize = NSZeroSize; // the new pane may be smaller than the old minimum
+	self.subview = newView;
+	[self updateWindowSizingForViewController:newViewController minimum:minimum];
 
 	BOOL setNewFirstResponder = self.view.window.firstResponder == self.view.window;
 	[self.view.window recalculateKeyViewLoop];
@@ -87,6 +127,8 @@ static NSString* const kMASPreferencesSelectedViewKey = @"MASPreferences Selecte
 	NSWindow* window = [NSPanel windowWithContentViewController:contentViewController];
 	if(NSString* topLeft = [NSUserDefaults.standardUserDefaults stringForKey:kMASPreferencesFrameTopLeftKey])
 		[window setFrameTopLeftPoint:NSPointFromString(topLeft)];
+	OakSetScaledWindowContentView(window, contentViewController.view); // the panes zoom with the interface scale; the toolbar is AppKit’s and does not
+	[window bind:NSTitleBinding toObject:contentViewController withKeyPath:@"title" options:nil]; // replacing the content view cleared the content view controller, and with it the title binding windowWithContentViewController: made
 
 	if((self = [super initWithWindow:window]))
 	{

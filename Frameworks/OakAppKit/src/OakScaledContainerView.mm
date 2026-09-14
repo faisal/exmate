@@ -4,6 +4,7 @@
 @implementation OakScaledContainerView
 {
 	CGFloat _appliedScale; // the scale the window was last sized for
+	NSSize  _initialSize;  // the content’s frame when installed: the design size of a content without constraints
 }
 
 - (instancetype)initWithContentView:(NSView*)contentView
@@ -14,7 +15,8 @@
 		_resizesWindow = YES;
 		_contentView.translatesAutoresizingMaskIntoConstraints = YES;
 		_contentView.autoresizingMask = NSViewNotSizable;
-		_contentView.frame = (NSRect){ NSZeroPoint, _contentView.fittingSize };
+		_initialSize = _contentView.frame.size;
+		_contentView.frame = (NSRect){ NSZeroPoint, self.designSize };
 		[self addSubview:_contentView];
 
 		// The window should not shrink the content below its fitting size, but
@@ -72,7 +74,7 @@
 	CGFloat accessoriesNow = 0, accessoriesOld = 0, accessoriesNew = 0;
 	for(OakScaledContainerView* accessory in self.scaledAccessories)
 	{
-		CGFloat height  = accessory.contentView.fittingSize.height;
+		CGFloat height  = accessory.designSize.height;
 		accessoriesNow += NSHeight(accessory.frame);
 		accessoriesOld += ceil(height * oldScale);
 		accessoriesNew += ceil(height * newScale);
@@ -100,6 +102,15 @@
 	[window setFrame:newFrame display:YES];
 }
 
+// The size the content is designed for: its fitting size when it has
+// constraints, otherwise (a xib laid out with autoresizing masks) the frame
+// it came with. The content is never placed smaller than this.
+- (NSSize)designSize
+{
+	NSSize fitting = _contentView.fittingSize;
+	return fitting.width > 0 && fitting.height > 0 ? fitting : _initialSize;
+}
+
 // The container that sizes a window, if any: OakSetScaledWindowContentView() puts it in a wrapper content view.
 static OakScaledContainerView* OakScaledWindowContentContainer (NSWindow* window)
 {
@@ -115,6 +126,8 @@ static OakScaledContainerView* OakScaledWindowContentContainer (NSWindow* window
 - (NSArray<OakScaledContainerView*>*)scaledAccessories
 {
 	NSMutableArray* res = [NSMutableArray array];
+	if(!(self.window.styleMask & NSWindowStyleMaskTitled))
+		return res; // a borderless window raises when asked for title bar accessories
 	for(NSTitlebarAccessoryViewController* controller in self.window.titlebarAccessoryViewControllers)
 	{
 		if([controller.view isKindOfClass:[OakScaledContainerView class]] && !((OakScaledContainerView*)controller.view).resizesWindow)
@@ -140,14 +153,14 @@ static OakScaledContainerView* OakScaledWindowContentContainer (NSWindow* window
 	if(NSScreen* screen = self.window.screen ?: NSScreen.mainScreen)
 	{
 		NSSize available = screen.visibleFrame.size;
-		NSSize design    = _contentView.fittingSize;
+		NSSize design    = self.designSize;
 		if(self.window && _resizesWindow)
 		{
 			CGFloat accessoriesNow = 0;
 			for(OakScaledContainerView* accessory in self.scaledAccessories)
 			{
 				accessoriesNow += NSHeight(accessory.frame);
-				design.height  += accessory.contentView.fittingSize.height;
+				design.height  += accessory.designSize.height;
 			}
 			available.width  -= NSWidth(self.window.frame)  - NSWidth(self.frame);
 			available.height -= NSHeight(self.window.frame) - NSHeight(self.frame) - accessoriesNow;
@@ -159,7 +172,7 @@ static OakScaledContainerView* OakScaledWindowContentContainer (NSWindow* window
 
 - (NSSize)intrinsicContentSize
 {
-	NSSize fitting = _contentView.fittingSize;
+	NSSize fitting = self.designSize;
 	CGFloat scale  = self.effectiveScale;
 	return NSMakeSize(ceil(fitting.width * scale), ceil(fitting.height * scale));
 }
@@ -175,7 +188,7 @@ static OakScaledContainerView* OakScaledWindowContentContainer (NSWindow* window
 // constraints fight the content’s own and AppKit raises.
 - (void)placeContentView
 {
-	NSSize fitting = _contentView.fittingSize;
+	NSSize fitting = self.designSize;
 	NSSize size    = NSMakeSize(std::max(NSWidth(self.bounds), fitting.width), std::max(NSHeight(self.bounds), fitting.height));
 	_contentView.frame = NSMakeRect(0, 0, size.width, size.height);
 }
@@ -238,4 +251,15 @@ void OakSetScaledWindowContentView (NSWindow* window, NSView* contentView)
 	]];
 	window.contentView = wrapper;
 	[window layoutIfNeeded]; // size the content to the window now, so views added to it later fit (see the tests)
+
+	// A frame restored smaller than the content (a panel whose design grew
+	// since the frame was saved) would clip it: grow the window to fit.
+	NSSize least   = container.intrinsicContentSize;
+	NSRect content = [window contentRectForFrameRect:window.frame];
+	if(NSWidth(content) < least.width || NSHeight(content) < least.height)
+	{
+		NSRect frame = [window frameRectForContentRect:NSMakeRect(NSMinX(content), NSMinY(content), std::max(NSWidth(content), least.width), std::max(NSHeight(content), least.height))];
+		frame.origin.y = NSMaxY(window.frame) - NSHeight(frame); // keep the top-left corner
+		[window setFrame:frame display:NO];
+	}
 }

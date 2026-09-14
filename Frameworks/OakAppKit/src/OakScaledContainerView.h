@@ -20,3 +20,6 @@
 
 // Installs contentView in a window inside an OakScaledContainerView.
 void OakSetScaledWindowContentView (NSWindow* window, NSView* contentView);
+
+// The scale of the OakScaledContainerView that view is inside, or 1: the window points per point of view.
+CGFloat OakScaledContainerScaleForView (NSView* view);

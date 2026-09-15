@@ -1,5 +1,5 @@
 target "${dirname}" {
-	headers     vendor/src/oniguruma.h
+	flat_headers vendor/src/oniguruma.h
 
 	add FLAGS   "-I${dir} -I${dir}/vendor/src"
 	add LN_FLAGS "${dir}/libonig.a"

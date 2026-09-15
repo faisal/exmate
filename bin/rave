@@ -133,7 +133,7 @@ class Parser
       command, args = line
 
       inputs = nil
-      if [ :prelude, :sources, :headers, :tests, :cxx_tests ].include?(command)
+      if [ :prelude, :sources, :headers, :flat_headers, :tests, :cxx_tests ].include?(command)
         inputs, args = args, []
       elsif [ :files, :copy ].include?(command)
         args, inputs = args.partition { |e| e.start_with?('@') }
@@ -302,7 +302,7 @@ class Parser
             when :define
               target[command] ||= []
               target[command] << args
-            when :require, :require_headers, :prelude, :headers, :sources, :tests, :cxx_tests, :frameworks
+            when :require, :require_headers, :prelude, :headers, :flat_headers, :sources, :tests, :cxx_tests, :frameworks
               target[command] ||= []
               target[command] += args
             when :libraries
@@ -821,14 +821,15 @@ module Target
     unless target[:build][:include_dir]
       include_dir, rules = nil, []
 
-      if headers = target[:headers]
+      if headers = target[:headers] || target[:flat_headers]
         include_dir = File.join(target[:builddir], '_Include', target[:name])
+        nested      = target.include?(:headers)
 
         headers = headers.map do |header|
           rules << {
             name:        'ExportHeader',
             in:          header,
-            out:         File.join(include_dir, target[:name], File.basename(header)),
+            out:         nested ? File.join(include_dir, target[:name], File.basename(header)) : File.join(include_dir, File.basename(header)),
             command:     '/bin/cp -Xp $in $out && touch $out',
             description: 'Export ‘${in}’…',
           }

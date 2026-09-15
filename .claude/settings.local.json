@@ -3,7 +3,7 @@
     "allow": [
       "Bash(rtk grep:*)",
       "Bash(rtk find:*)",
-      "Bash(rtk ninja:*)",
+      "Bash(rtk ninja:*)"
     ]
   }
 }
